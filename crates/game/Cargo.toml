@@ -3,6 +3,7 @@ name = "pixelcraft-game"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+default-run = "pixelcraft"
 
 [lib]
 name = "pixelcraft_game"

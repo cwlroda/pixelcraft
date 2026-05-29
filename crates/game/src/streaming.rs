@@ -133,6 +133,8 @@ pub struct ChunkManager {
     queue: Arc<JobQueue>,
     workers: Vec<JoinHandle<()>>,
     shutdown: Arc<AtomicBool>,
+    /// Threads used to mesh the per-update batch in parallel (1 = sequential).
+    mesh_threads: usize,
     last_center: Option<ChunkPos>,
 }
 
@@ -177,6 +179,10 @@ impl ChunkManager {
             queue,
             workers,
             shutdown,
+            // Mesh in parallel when generation workers were requested; the sync
+            // path (worker_count == 0) meshes on the calling thread for
+            // deterministic tests.
+            mesh_threads: worker_count.max(1),
             last_center: None,
         }
     }
@@ -340,6 +346,11 @@ impl ChunkManager {
     }
 
     /// (Re)mesh dirty chunks, nearest first, within the per-update budget.
+    ///
+    /// Meshing is the heaviest per-frame CPU cost, so when worker threads are
+    /// available the budgeted batch is meshed in parallel. Each chunk only reads
+    /// the (immutable, `Sync`) world, so a scoped thread pool can fan the batch
+    /// out with shared `&World` — no copying or locking of voxel data.
     fn remesh_dirty(&mut self, center: ChunkPos) {
         let mut dirty: Vec<ChunkPos> = self
             .world
@@ -348,14 +359,36 @@ impl ChunkManager {
             .map(|c| c.pos)
             .collect();
         dirty.sort_by_key(|p| p.distance_sq(center));
+        dirty.truncate(self.config.max_meshes_per_update);
+        if dirty.is_empty() {
+            return;
+        }
 
-        for pos in dirty.into_iter().take(self.config.max_meshes_per_update) {
-            let mesh = {
-                let Some(sampler) = ChunkNeighborSampler::new(&self.world, pos) else {
-                    continue;
-                };
-                mesh_chunk(&sampler, &self.registry)
-            };
+        let world = &self.world;
+        let registry: &BlockRegistry = &self.registry;
+        let mesh_one = |pos: ChunkPos| -> Option<(ChunkPos, ChunkMesh)> {
+            let sampler = ChunkNeighborSampler::new(world, pos)?;
+            Some((pos, mesh_chunk(&sampler, registry)))
+        };
+
+        let results: Vec<(ChunkPos, ChunkMesh)> = if self.mesh_threads <= 1 || dirty.len() == 1 {
+            dirty.iter().filter_map(|&p| mesh_one(p)).collect()
+        } else {
+            let threads = self.mesh_threads.min(dirty.len());
+            let per = dirty.len().div_ceil(threads);
+            std::thread::scope(|scope| {
+                let handles: Vec<_> = dirty
+                    .chunks(per)
+                    .map(|slice| scope.spawn(|| slice.iter().filter_map(|&p| mesh_one(p)).collect::<Vec<_>>()))
+                    .collect();
+                handles
+                    .into_iter()
+                    .flat_map(|h| h.join().unwrap())
+                    .collect()
+            })
+        };
+
+        for (pos, mesh) in results {
             if mesh.is_empty() {
                 self.meshes.remove(&pos);
             } else {
