@@ -1,0 +1,16 @@
+[package]
+name = "pixelcraft-game"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pixelcraft"
+path = "src/main.rs"
+
+[dependencies]
+pixelcraft-core.workspace = true
+pixelcraft-worldgen.workspace = true
+pixelcraft-mesh.workspace = true
+pixelcraft-physics.workspace = true
+glam.workspace = true

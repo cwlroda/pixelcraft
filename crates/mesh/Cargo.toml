@@ -1,0 +1,10 @@
+[package]
+name = "pixelcraft-mesh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+pixelcraft-core.workspace = true
+glam.workspace = true
+bytemuck.workspace = true

@@ -1,0 +1,42 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/worldgen",
+    "crates/mesh",
+    "crates/physics",
+    "crates/game",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["PixelCraft contributors"]
+repository = "https://github.com/cwlroda/pixelcraft"
+
+[workspace.dependencies]
+pixelcraft-core = { path = "crates/core" }
+pixelcraft-worldgen = { path = "crates/worldgen" }
+pixelcraft-mesh = { path = "crates/mesh" }
+pixelcraft-physics = { path = "crates/physics" }
+glam = { version = "0.29", features = ["bytemuck"] }
+bytemuck = { version = "1.18", features = ["derive"] }
+ahash = "0.8"
+
+# Aggressive optimization for the release profile: this is a real-time game,
+# so we trade compile time for runtime throughput. LTO + a single codegen unit
+# lets the optimizer inline across the hot voxel/meshing paths.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+# Even debug builds run the world simulation, so keep dependencies optimized
+# while leaving our own crates debuggable.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
