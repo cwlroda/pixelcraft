@@ -74,12 +74,13 @@ fn main() {
     renderer.set_render_distance(render_distance);
     renderer.sync_meshes(&game.manager);
     renderer.update_entities(&game.entities);
+    let quest = game.quests.hud();
     let hud = pixelcraft_game::render::HudState {
         inventory: &game.inventory,
         registry: &game.manager.registry,
         time_of_day: 0.12,
-        objective: Some("EXPLORE THE COSY VALLEY".to_string()),
-        objective_progress: None,
+        objective: quest.as_ref().map(|(t, _)| t.clone()),
+        objective_progress: quest.as_ref().map(|(_, p)| *p),
     };
     renderer.update_hud(&hud);
     println!(

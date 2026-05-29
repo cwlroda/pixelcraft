@@ -9,6 +9,7 @@ pub mod entity;
 pub mod environment;
 pub mod interaction;
 pub mod inventory;
+pub mod quest;
 pub mod raycast;
 pub mod sampler;
 pub mod streaming;
@@ -21,6 +22,7 @@ pub use entity::{EntityConfig, EntityKind, EntityManager};
 pub use environment::Environment;
 pub use interaction::{mine, place, target, Interaction, REACH};
 pub use inventory::{Inventory, HOTBAR};
+pub use quest::{Objective, Quest, QuestLog};
 pub use raycast::{cast, RayHit};
 pub use streaming::{ChunkManager, StreamConfig, StreamStats};
 
@@ -36,6 +38,7 @@ pub struct Game {
     pub inventory: Inventory,
     pub entities: EntityManager,
     pub environment: Environment,
+    pub quests: QuestLog,
     /// Seconds of accumulated simulation time.
     pub time: f32,
 }
@@ -55,7 +58,36 @@ impl Game {
             inventory,
             entities: EntityManager::new(seed, EntityConfig::default()),
             environment: Environment::default(),
+            quests: QuestLog::cosy_chain(),
             time: 0.0,
+        }
+    }
+
+    /// Mine the block the cat is looking at, crediting the inventory and quest
+    /// log (and applying any quest reward). Returns the interaction outcome.
+    pub fn do_mine(&mut self, eye: Vec3, look: Vec3) -> Interaction {
+        let result = interaction::mine(&mut self.manager, &mut self.inventory, eye, look);
+        if let Interaction::Mined(id) = result {
+            let reward = self.quests.on_collect(id, 1);
+            self.grant(&reward);
+        }
+        result
+    }
+
+    /// Place the selected block, crediting the quest log on success.
+    pub fn do_place(&mut self, eye: Vec3, look: Vec3) -> Interaction {
+        let body = self.player.aabb();
+        let result = interaction::place(&mut self.manager, &mut self.inventory, eye, look, body);
+        if let Interaction::Placed(id) = result {
+            let reward = self.quests.on_place(id);
+            self.grant(&reward);
+        }
+        result
+    }
+
+    fn grant(&mut self, reward: &[(pixelcraft_core::block::BlockId, u32)]) {
+        for &(id, n) in reward {
+            self.inventory.add(id, n);
         }
     }
 

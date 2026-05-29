@@ -15,7 +15,6 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 
 use super::{Renderer, CHUNK_EDGE};
 use crate::camera::Camera;
-use crate::interaction;
 use crate::{Game, StreamConfig};
 use pixelcraft_physics::MovementInput;
 
@@ -209,32 +208,30 @@ impl State {
 
         self.game.update(input, dt);
 
-        // Resolve queued block interactions against the current look ray.
+        // Resolve queued block interactions against the current look ray
+        // (routed through the game so the quest log and inventory update).
         let eye = self.game.player.eye();
         let look = self.game.player.look_dir();
         if std::mem::take(&mut self.mine_queued) {
-            interaction::mine(&mut self.game.manager, &mut self.game.inventory, eye, look);
+            self.game.do_mine(eye, look);
         }
         if std::mem::take(&mut self.place_queued) {
-            let body = self.game.player.aabb();
-            interaction::place(
-                &mut self.game.manager,
-                &mut self.game.inventory,
-                eye,
-                look,
-                body,
-            );
+            self.game.do_place(eye, look);
         }
 
         // Push fresh/edited chunk meshes and the ambient critters to the GPU.
         self.renderer.sync_meshes(&self.game.manager);
         self.renderer.update_entities(&self.game.entities);
+        let quest = self.game.quests.hud();
         let hud = super::HudState {
             inventory: &self.game.inventory,
             registry: &self.game.manager.registry,
             time_of_day: self.game.environment.time_of_day,
-            objective: None,
-            objective_progress: None,
+            objective: quest
+                .as_ref()
+                .map(|(t, _)| t.clone())
+                .or_else(|| Some("ALL QUESTS DONE - ENJOY!".to_string())),
+            objective_progress: quest.as_ref().map(|(_, p)| *p),
         };
         self.renderer.update_hud(&hud);
 
