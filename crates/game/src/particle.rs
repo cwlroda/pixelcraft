@@ -14,6 +14,8 @@ struct Particle {
     life: f32,
     max_life: f32,
     size: f32,
+    /// Vertical elongation (1 = cube; >1 stretches into a streak, for rain).
+    stretch: f32,
     color: Color,
     /// Sway phase for fluttering petals (0 = no sway, e.g. debris).
     flutter: f32,
@@ -30,7 +32,7 @@ impl ParticleSystem {
         Self {
             particles: Vec::new(),
             rng: SplitMix64::new(seed ^ 0x9A7C_1EE),
-            max: 600,
+            max: 1400,
         }
     }
 
@@ -63,6 +65,7 @@ impl ParticleSystem {
                 life: 0.0,
                 max_life: 6.0 + self.rng.next_f32() * 3.0,
                 size: 0.12,
+                stretch: 1.0,
                 color: Color::rgb(246, 178, 212),
                 flutter: 1.0 + self.rng.next_f32(),
             });
@@ -72,7 +75,7 @@ impl ParticleSystem {
     /// Emit weather precipitation around the player: drifting snow or quick
     /// rain streaks falling from above.
     pub fn emit_weather(&mut self, around: Vec3, snow: bool, dt: f32) {
-        let rate = if snow { 26.0 } else { 60.0 };
+        let rate = if snow { 40.0 } else { 220.0 };
         let expected = rate * dt;
         let mut n = expected as i32;
         if self.rng.next_f32() < expected.fract() {
@@ -96,6 +99,7 @@ impl ParticleSystem {
                     life: 0.0,
                     max_life: 5.0 + self.rng.next_f32() * 2.0,
                     size: 0.08,
+                    stretch: 1.0,
                     color: Color::rgb(245, 248, 255),
                     flutter: 1.0 + self.rng.next_f32(),
                 });
@@ -105,8 +109,9 @@ impl ParticleSystem {
                     vel: Vec3::new(0.0, -16.0 - self.rng.next_f32() * 4.0, 0.0),
                     life: 0.0,
                     max_life: 1.2,
-                    size: 0.05,
-                    color: Color::rgb(170, 190, 220),
+                    size: 0.04,
+                    stretch: 7.0,
+                    color: Color::rgb(176, 196, 226),
                     flutter: 0.0,
                 });
             }
@@ -131,6 +136,7 @@ impl ParticleSystem {
                 life: 0.0,
                 max_life: 0.6 + self.rng.next_f32() * 0.4,
                 size: 0.1,
+                stretch: 1.0,
                 color,
                 flutter: 0.0,
             });
@@ -159,13 +165,14 @@ impl ParticleSystem {
         for p in &self.particles {
             let fade = (1.0 - p.life / p.max_life).clamp(0.0, 1.0);
             let s = p.size;
+            let sy = p.size * p.stretch;
             let c = [
                 p.color.r as f32 / 255.0,
                 p.color.g as f32 / 255.0,
                 p.color.b as f32 / 255.0,
                 fade,
             ];
-            append_quad_cube(&mut verts, &mut indices, p.pos, s, c, white_layer);
+            append_quad_cube(&mut verts, &mut indices, p.pos, s, sy, c, white_layer);
         }
         (verts, indices)
     }
@@ -177,16 +184,18 @@ fn append_quad_cube(
     indices: &mut Vec<u32>,
     pos: Vec3,
     s: f32,
+    sy: f32,
     color: [f32; 4],
     layer: u32,
 ) {
+    let h = sy; // vertical half-extent (streak length for rain)
     let faces: [([f32; 3], [Vec3; 4]); 6] = [
-        ([1.0, 0.0, 0.0], [Vec3::new(s, -s, -s), Vec3::new(s, -s, s), Vec3::new(s, s, s), Vec3::new(s, s, -s)]),
-        ([-1.0, 0.0, 0.0], [Vec3::new(-s, -s, s), Vec3::new(-s, -s, -s), Vec3::new(-s, s, -s), Vec3::new(-s, s, s)]),
-        ([0.0, 1.0, 0.0], [Vec3::new(-s, s, -s), Vec3::new(s, s, -s), Vec3::new(s, s, s), Vec3::new(-s, s, s)]),
-        ([0.0, -1.0, 0.0], [Vec3::new(-s, -s, s), Vec3::new(s, -s, s), Vec3::new(s, -s, -s), Vec3::new(-s, -s, -s)]),
-        ([0.0, 0.0, 1.0], [Vec3::new(s, -s, s), Vec3::new(-s, -s, s), Vec3::new(-s, s, s), Vec3::new(s, s, s)]),
-        ([0.0, 0.0, -1.0], [Vec3::new(-s, -s, -s), Vec3::new(s, -s, -s), Vec3::new(s, s, -s), Vec3::new(-s, s, -s)]),
+        ([1.0, 0.0, 0.0], [Vec3::new(s, -h, -s), Vec3::new(s, -h, s), Vec3::new(s, h, s), Vec3::new(s, h, -s)]),
+        ([-1.0, 0.0, 0.0], [Vec3::new(-s, -h, s), Vec3::new(-s, -h, -s), Vec3::new(-s, h, -s), Vec3::new(-s, h, s)]),
+        ([0.0, 1.0, 0.0], [Vec3::new(-s, h, -s), Vec3::new(s, h, -s), Vec3::new(s, h, s), Vec3::new(-s, h, s)]),
+        ([0.0, -1.0, 0.0], [Vec3::new(-s, -h, s), Vec3::new(s, -h, s), Vec3::new(s, -h, -s), Vec3::new(-s, -h, -s)]),
+        ([0.0, 0.0, 1.0], [Vec3::new(s, -h, s), Vec3::new(-s, -h, s), Vec3::new(-s, h, s), Vec3::new(s, h, s)]),
+        ([0.0, 0.0, -1.0], [Vec3::new(-s, -h, -s), Vec3::new(s, -h, -s), Vec3::new(s, h, -s), Vec3::new(-s, h, -s)]),
     ];
     for (normal, corners) in faces {
         let base = verts.len() as u32;
@@ -228,7 +237,7 @@ mod tests {
         for _ in 0..500 {
             ps.burst(Vec3::ZERO, Color::rgb(200, 100, 100), 20);
         }
-        assert!(ps.count() <= 600, "particle cap exceeded: {}", ps.count());
+        assert!(ps.count() <= 1400, "particle cap exceeded: {}", ps.count());
     }
 
     #[test]
