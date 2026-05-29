@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use super::scene::{create_depth, request_device, GpuScene};
+use super::scene::{create_depth, create_msaa_color, request_device, GpuScene};
 use crate::camera::Camera;
 use crate::environment::Environment;
 use crate::streaming::ChunkManager;
@@ -12,6 +12,7 @@ pub struct Renderer {
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
     depth_view: wgpu::TextureView,
+    msaa_view: wgpu::TextureView,
     scene: GpuScene,
 }
 
@@ -46,12 +47,14 @@ impl Renderer {
         };
         surface.configure(&device, &config);
         let depth_view = create_depth(&device, config.width, config.height);
+        let msaa_view = create_msaa_color(&device, format, config.width, config.height);
         let scene = GpuScene::new(device, queue, format);
 
         Self {
             surface,
             config,
             depth_view,
+            msaa_view,
             scene,
         }
     }
@@ -72,6 +75,7 @@ impl Renderer {
         self.config.height = height;
         self.surface.configure(&self.scene.device, &self.config);
         self.depth_view = create_depth(&self.scene.device, width, height);
+        self.msaa_view = create_msaa_color(&self.scene.device, self.config.format, width, height);
     }
 
     pub fn aspect(&self) -> f32 {
@@ -152,9 +156,11 @@ impl Renderer {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("frame-encoder"),
                 });
+        // Render into the multisampled target, resolving into the surface view.
         self.scene.encode(
             &mut encoder,
-            &view,
+            &self.msaa_view,
+            Some(&view),
             &self.depth_view,
             env.sky_color(),
             &frustum,

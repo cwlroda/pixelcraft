@@ -19,6 +19,32 @@ use crate::streaming::ChunkManager;
 pub const CHUNK_EDGE: f32 = CHUNK_SIZE as f32;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+/// MSAA sample count, for smoother block silhouettes.
+pub const SAMPLE_COUNT: u32 = 4;
+
+/// Create a multisampled colour target to render into before resolving.
+pub fn create_msaa_color(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    width: u32,
+    height: u32,
+) -> wgpu::TextureView {
+    let tex = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("msaa-color"),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: SAMPLE_COUNT,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    });
+    tex.create_view(&wgpu::TextureViewDescriptor::default())
+}
 
 /// Uniform block shared with `world.wgsl`. Layout must match the WGSL `Globals`.
 #[repr(C)]
@@ -398,6 +424,7 @@ impl GpuScene {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         color: &wgpu::TextureView,
+        resolve: Option<&wgpu::TextureView>,
         depth: &wgpu::TextureView,
         clear: Vec3,
         frustum: &Frustum,
@@ -406,7 +433,7 @@ impl GpuScene {
             label: Some("world-pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: color,
-                resolve_target: None,
+                resolve_target: resolve,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
                         r: clear.x as f64,
@@ -487,7 +514,7 @@ fn draw_layer<'a>(pass: &mut wgpu::RenderPass<'a>, layer: &'a GpuLayer) {
     pass.draw_indexed(0..layer.index_count, 0, 0..1);
 }
 
-/// Create a depth texture view sized to the target.
+/// Create a (multisampled) depth texture view sized to the target.
 pub fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("depth"),
@@ -497,7 +524,7 @@ pub fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Tex
             depth_or_array_layers: 1,
         },
         mip_level_count: 1,
-        sample_count: 1,
+        sample_count: SAMPLE_COUNT,
         dimension: wgpu::TextureDimension::D2,
         format: DEPTH_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -600,7 +627,10 @@ fn make_pipeline(
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
-        multisample: wgpu::MultisampleState::default(),
+        multisample: wgpu::MultisampleState {
+            count: SAMPLE_COUNT,
+            ..Default::default()
+        },
         multiview: None,
         cache: None,
     })
@@ -647,7 +677,10 @@ fn make_sky_pipeline(
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
-        multisample: wgpu::MultisampleState::default(),
+        multisample: wgpu::MultisampleState {
+            count: SAMPLE_COUNT,
+            ..Default::default()
+        },
         multiview: None,
         cache: None,
     })
@@ -711,7 +744,10 @@ fn make_ui_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu:
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
-        multisample: wgpu::MultisampleState::default(),
+        multisample: wgpu::MultisampleState {
+            count: SAMPLE_COUNT,
+            ..Default::default()
+        },
         multiview: None,
         cache: None,
     })

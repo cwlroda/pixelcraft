@@ -21,6 +21,7 @@ pub struct Headless {
     height: u32,
     color_texture: wgpu::Texture,
     color_view: wgpu::TextureView,
+    msaa_view: wgpu::TextureView,
     depth_view: wgpu::TextureView,
     output_buffer: wgpu::Buffer,
     padded_bytes_per_row: u32,
@@ -55,6 +56,7 @@ impl Headless {
             view_formats: &[],
         });
         let color_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let msaa_view = super::scene::create_msaa_color(&device, FORMAT, width, height);
         let depth_view = create_depth(&device, width, height);
 
         let padded_bytes_per_row = align_up(width * 4, wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
@@ -73,6 +75,7 @@ impl Headless {
             height,
             color_texture,
             color_view,
+            msaa_view,
             depth_view,
             output_buffer,
             padded_bytes_per_row,
@@ -173,14 +176,16 @@ impl Headless {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("capture-encoder"),
                 });
+        // Render multisampled, resolving into the single-sample colour texture.
         self.scene.encode(
             &mut encoder,
-            &self.color_view,
+            &self.msaa_view,
+            Some(&self.color_view),
             &self.depth_view,
             env.sky_color(),
             &frustum,
         );
-        // Copy the rendered texture into the mappable readback buffer.
+        // Copy the resolved texture into the mappable readback buffer.
         encoder.copy_texture_to_buffer(
             wgpu::ImageCopyTexture {
                 texture: &self.color_texture,
