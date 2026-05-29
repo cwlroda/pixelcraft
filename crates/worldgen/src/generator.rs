@@ -259,6 +259,33 @@ impl WorldGenerator {
                     self.place_tree(storage, origin, wx, wz, surface, col.biome, &mut rng);
                 } else if roll < profile.tree_density + profile.flora_density {
                     self.place_flora(storage, origin, wx, wz, surface, col.biome, &mut rng);
+                } else if roll > 0.994 {
+                    // A rare mossy boulder to break up open ground.
+                    self.place_boulder(storage, origin, wx, wz, surface, &mut rng);
+                }
+            }
+        }
+    }
+
+    /// Stamp a small rounded boulder (a clump of cobble) resting on the surface.
+    fn place_boulder(
+        &self,
+        storage: &mut ChunkStorage,
+        origin: pixelcraft_core::coords::BlockPos,
+        wx: i32,
+        wz: i32,
+        surface: i32,
+        rng: &mut SplitMix64,
+    ) {
+        let r = 1 + (rng.next_u64() % 2) as i32; // radius 1..2
+        for dy in 0..=r {
+            for dz in -r..=r {
+                for dx in -r..=r {
+                    // Squashed sphere so it sits like a rock, not a cube.
+                    if dx * dx + (dy * dy) * 2 + dz * dz > r * r + 1 {
+                        continue;
+                    }
+                    self.stamp(storage, origin, wx + dx, surface + dy, wz + dz, blocks::COBBLE, true);
                 }
             }
         }
