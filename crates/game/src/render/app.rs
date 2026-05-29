@@ -47,6 +47,7 @@ struct State {
     // Edge-triggered interaction so holding the button doesn't spam edits.
     mine_queued: bool,
     place_queued: bool,
+    third_person: bool,
     fps_accum: f32,
     fps_frames: u32,
 }
@@ -80,6 +81,7 @@ impl ApplicationHandler for App {
             mouse_grabbed,
             mine_queued: false,
             place_queued: false,
+            third_person: false,
             fps_accum: 0.0,
             fps_frames: 0,
         });
@@ -121,6 +123,10 @@ impl ApplicationHandler for App {
                             }
                             if code == KeyCode::F9 {
                                 state.load_game();
+                            }
+                            // Toggle first/third-person view.
+                            if code == KeyCode::KeyV {
+                                state.third_person = !state.third_person;
                             }
                             state.keys.insert(code);
                         }
@@ -274,8 +280,17 @@ impl State {
         // Drive vertex animation (water/grass) from elapsed sim time.
         self.renderer.set_time(self.game.time);
 
-        // Camera follows the eye.
-        let camera = Camera::new(eye, look, self.renderer.aspect());
+        // Camera: first-person at the eye, or pulled back behind the cat in
+        // third-person (where we also draw the player's own ginger tabby).
+        let camera = if self.third_person {
+            let cam_eye = eye - look * 4.0 + Vec3::Y * 0.6;
+            self.renderer
+                .update_player_model(Some((self.game.player.position, self.game.player.yaw)));
+            Camera::new(cam_eye, look, self.renderer.aspect())
+        } else {
+            self.renderer.update_player_model(None);
+            Camera::new(eye, look, self.renderer.aspect())
+        };
 
         match self.renderer.render(&camera, &self.game.environment) {
             Ok(()) => {}

@@ -109,6 +109,16 @@ impl Headless {
         self.scene.upload_particles(&v, &i);
     }
 
+    pub fn update_player_model(&mut self, model: Option<(glam::Vec3, f32)>) {
+        match model {
+            Some((pos, yaw)) => {
+                let (v, i) = crate::entity::player_cat_geometry(pos, yaw, self.scene.white_layer());
+                self.scene.upload_player_model(&v, &i);
+            }
+            None => self.scene.upload_player_model(&[], &[]),
+        }
+    }
+
     /// Rebuild the HUD overlay for the current frame.
     pub fn update_hud(&mut self, state: &super::ui::HudState) {
         let verts = super::ui::build_hud(self.width, self.height, state);

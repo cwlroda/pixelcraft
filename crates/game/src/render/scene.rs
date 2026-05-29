@@ -63,6 +63,8 @@ pub struct GpuScene {
     entities: Option<GpuLayer>,
     /// Dynamic transparent geometry for particles (petals, debris).
     particles: Option<GpuLayer>,
+    /// The player's own cat model (third-person view only).
+    player_model: Option<GpuLayer>,
     ui_pipeline: wgpu::RenderPipeline,
     ui_buffer: Option<(wgpu::Buffer, u32)>,
     /// Index of the solid-white atlas tile, used by untextured geometry.
@@ -210,6 +212,7 @@ impl GpuScene {
             chunks: AHashMap::new(),
             entities: None,
             particles: None,
+            player_model: None,
             render_distance: 16.0 * CHUNK_EDGE,
         }
     }
@@ -217,6 +220,11 @@ impl GpuScene {
     /// Replace the per-frame particle geometry (drawn transparent).
     pub fn upload_particles(&mut self, verts: &[Vertex], indices: &[u32]) {
         self.particles = self.upload_layer(verts, indices, Vec3::ZERO);
+    }
+
+    /// Replace the player's cat model geometry (empty slices = hide it).
+    pub fn upload_player_model(&mut self, verts: &[Vertex], indices: &[u32]) {
+        self.player_model = self.upload_layer(verts, indices, Vec3::ZERO);
     }
 
     /// Set the elapsed-time value used to drive vertex animation.
@@ -405,6 +413,9 @@ impl GpuScene {
         }
         // Ambient critters are opaque; draw them in the same pass.
         if let Some(layer) = &self.entities {
+            draw_layer(&mut pass, layer);
+        }
+        if let Some(layer) = &self.player_model {
             draw_layer(&mut pass, layer);
         }
 

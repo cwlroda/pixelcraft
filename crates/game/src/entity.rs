@@ -452,27 +452,47 @@ fn append_entity(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, e: &Entity, la
             append_box(verts, indices, p + Vec3::new(-0.09, 0.0, -0.09), p + Vec3::new(0.09, 0.18, 0.09), glow, layer);
         }
         EntityKind::Friend => {
-            // A sit-up tabby cat: body, head, two ears, and a curled tail.
-            let fur = Color::rgb(176, 168, 196); // soft lilac-grey tabby
-            let ear = Color::rgb(150, 142, 172);
-            let (sy, cy) = e.yaw.sin_cos();
-            let fwd = Vec3::new(sy, 0.0, cy);
-            let right = Vec3::new(cy, 0.0, -sy);
-            // Body.
-            append_box(verts, indices, p + Vec3::new(-0.22, 0.0, -0.22), p + Vec3::new(0.22, 0.42, 0.22), fur, layer);
-            // Head sits forward and up.
-            let head = p + Vec3::new(0.0, 0.42, 0.0) + fwd * 0.06;
-            append_box(verts, indices, head + Vec3::new(-0.18, 0.0, -0.18), head + Vec3::new(0.18, 0.34, 0.18), fur, layer);
-            // Ears.
-            for side in [-0.12f32, 0.12] {
-                let base = head + Vec3::new(0.0, 0.34, 0.0) + right * side + fwd * 0.02;
-                append_box(verts, indices, base + Vec3::new(-0.06, 0.0, -0.06), base + Vec3::new(0.06, 0.12, 0.06), ear, layer);
-            }
-            // Curled tail at the back.
-            let tail = p - fwd * 0.24 + Vec3::new(0.0, 0.1, 0.0);
-            append_box(verts, indices, tail + Vec3::new(-0.06, 0.0, -0.06), tail + Vec3::new(0.06, 0.3, 0.06), ear, layer);
+            // A soft lilac-grey tabby.
+            append_cat(verts, indices, p, e.yaw, Color::rgb(176, 168, 196), Color::rgb(150, 142, 172), layer);
         }
     }
+}
+
+/// Build a sit-up cat: body, head, two ears and a curled tail, facing `yaw`.
+/// Shared by friendly NPCs and the player's own hero cat.
+pub fn append_cat(
+    verts: &mut Vec<Vertex>,
+    indices: &mut Vec<u32>,
+    p: Vec3,
+    yaw: f32,
+    fur: Color,
+    ear: Color,
+    layer: u32,
+) {
+    let (sy, cy) = yaw.sin_cos();
+    let fwd = Vec3::new(sy, 0.0, cy);
+    let right = Vec3::new(cy, 0.0, -sy);
+    // Body.
+    append_box(verts, indices, p + Vec3::new(-0.22, 0.0, -0.22), p + Vec3::new(0.22, 0.42, 0.22), fur, layer);
+    // Head, forward and up.
+    let head = p + Vec3::new(0.0, 0.42, 0.0) + fwd * 0.06;
+    append_box(verts, indices, head + Vec3::new(-0.18, 0.0, -0.18), head + Vec3::new(0.18, 0.34, 0.18), fur, layer);
+    // Ears.
+    for side in [-0.12f32, 0.12] {
+        let base = head + Vec3::new(0.0, 0.34, 0.0) + right * side + fwd * 0.02;
+        append_box(verts, indices, base + Vec3::new(-0.06, 0.0, -0.06), base + Vec3::new(0.06, 0.12, 0.06), ear, layer);
+    }
+    // Curled tail at the back.
+    let tail = p - fwd * 0.24 + Vec3::new(0.0, 0.1, 0.0);
+    append_box(verts, indices, tail + Vec3::new(-0.06, 0.0, -0.06), tail + Vec3::new(0.06, 0.3, 0.06), ear, layer);
+}
+
+/// Geometry for the player's own cat (a warm ginger tabby) at `pos`/`yaw`.
+pub fn player_cat_geometry(pos: Vec3, yaw: f32, layer: u32) -> (Vec<Vertex>, Vec<u32>) {
+    let mut v = Vec::new();
+    let mut i = Vec::new();
+    append_cat(&mut v, &mut i, pos, yaw, Color::rgb(236, 158, 92), Color::rgb(210, 130, 70), layer);
+    (v, i)
 }
 
 /// Air block id, re-exported for clarity in spawn checks.

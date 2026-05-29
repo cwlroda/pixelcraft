@@ -282,6 +282,34 @@ fn main() {
         println!("  wrote {path}");
     }
 
+    // Third-person hero shot: show the player's own ginger cat on the meadow.
+    {
+        let yaw = 0.7f32;
+        let cat_pos = ground;
+        renderer.update_player_model(Some((cat_pos, yaw)));
+        let center = cat_pos + Vec3::new(0.0, 0.45, 0.0);
+        let (sy, cy) = yaw.sin_cos();
+        let fwd = Vec3::new(sy, 0.0, cy);
+        let right = Vec3::new(cy, 0.0, -sy);
+        let eye = center + fwd * 2.4 + right * 1.6 + Vec3::new(0.0, 0.9, 0.0);
+        let forward = (center - eye).normalize();
+        let env = Environment { time_of_day: 0.14, day_length: 600.0 };
+        let camera = Camera::new(eye, forward, aspect);
+        let hud = pixelcraft_game::render::HudState {
+            inventory: &game.inventory,
+            registry: &game.manager.registry,
+            time_of_day: 0.14,
+            objective: game.quests.hud().map(|(t, _)| t),
+            objective_progress: game.quests.hud().map(|(_, p)| p),
+            dialogue: None,
+        };
+        renderer.update_hud(&hud);
+        let path = format!("{out_dir}/12_hero.png");
+        renderer.capture(&camera, &env, &path);
+        renderer.update_player_model(None);
+        println!("  wrote {path}");
+    }
+
     // A day→night→day timelapse GIF over the valley.
     make_timelapse(&game, ground, &out_dir);
 
