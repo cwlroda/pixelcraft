@@ -177,6 +177,12 @@ impl ChunkManager {
         self.workers.is_empty()
     }
 
+    /// Terrain surface height for a world column (delegates to the generator),
+    /// without needing the chunk to be loaded.
+    pub fn surface_height(&self, wx: i32, wz: i32) -> i32 {
+        self.gen.surface_height(wx, wz)
+    }
+
     /// Chunk containing a world position.
     pub fn chunk_of(pos: glam::Vec3) -> ChunkPos {
         BlockPos::new(

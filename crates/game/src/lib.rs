@@ -40,9 +40,10 @@ impl Game {
     pub fn new(seed: u64, config: StreamConfig, worker_count: usize) -> Self {
         let manager = ChunkManager::new(seed, config, worker_count);
         let inventory = Inventory::new(manager.registry.len());
-        // Spawn high in the sky; the player settles onto terrain once the
-        // spawn column streams in.
-        let spawn = Vec3::new(0.5, 160.0, 0.5);
+        // Find dry land near the origin so the cat doesn't spawn in the ocean,
+        // then drop in from just above that surface.
+        let (sx, sz, sh) = find_land_spawn(&manager);
+        let spawn = Vec3::new(sx as f32 + 0.5, sh as f32 + 3.0, sz as f32 + 0.5);
         let player = Player::new(spawn);
         Self {
             manager,
@@ -81,6 +82,35 @@ impl Game {
     }
 }
 
+/// Spiral outward from the origin to find a column whose surface is above sea
+/// level (i.e. dry land), returning `(x, z, surface_height)`. Falls back to the
+/// origin if nothing is found within the search radius.
+fn find_land_spawn(manager: &ChunkManager) -> (i32, i32, i32) {
+    use pixelcraft_worldgen::SEA_LEVEL;
+    let mut best = (0, 0, manager.surface_height(0, 0));
+    // Sample on a grid spiralling out; we want land a little above the waterline
+    // so the spawn feels like a proper beach/meadow, not a puddle. Ocean-heavy
+    // worlds can push land far from the origin, so search a wide radius — it's
+    // only a few thousand cheap noise evaluations.
+    for radius in (0..=8000).step_by(12) {
+        // More angular samples as the ring grows, to keep spatial coverage even.
+        let angles = (16 + radius / 24).min(96);
+        for angle_step in 0..angles {
+            let theta = angle_step as f32 / angles as f32 * std::f32::consts::TAU;
+            let x = (radius as f32 * theta.cos()) as i32;
+            let z = (radius as f32 * theta.sin()) as i32;
+            let h = manager.surface_height(x, z);
+            if h >= SEA_LEVEL + 2 {
+                return (x, z, h);
+            }
+            if h > best.2 {
+                best = (x, z, h);
+            }
+        }
+    }
+    best
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,6 +141,22 @@ mod tests {
         // It should have come to rest above sea level-ish, not at the void.
         assert!(game.player.position.y > 1.0);
         assert!(game.world_ready_under_player());
+    }
+
+    #[test]
+    fn spawn_is_on_dry_land() {
+        use pixelcraft_worldgen::SEA_LEVEL;
+        // Across several seeds, the chosen spawn column should be above water.
+        for seed in [1u64, 2, 3, 42, 777, 0xCA75_C0DE] {
+            let game = Game::new(seed, test_config(), 0);
+            let h = game
+                .manager
+                .surface_height(game.player.position.x as i32, game.player.position.z as i32);
+            assert!(
+                h >= SEA_LEVEL,
+                "seed {seed}: spawned underwater (surface {h} < sea {SEA_LEVEL})"
+            );
+        }
     }
 
     #[test]

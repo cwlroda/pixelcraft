@@ -42,24 +42,34 @@ impl MeshBuffers {
         self.indices.len() / 6
     }
 
-    fn push_quad(&mut self, corners: [[f32; 3]; 4], normal: [f32; 3], color: [f32; 4], flip: bool) {
+    fn push_quad(
+        &mut self,
+        corners: [[f32; 3]; 4],
+        colors: [[f32; 4]; 4],
+        normal: [f32; 3],
+        reverse_winding: bool,
+        flip_diagonal: bool,
+    ) {
         let base = self.vertices.len() as u32;
-        for &position in &corners {
+        for (position, color) in corners.into_iter().zip(colors) {
             self.vertices.push(Vertex {
                 position,
                 normal,
                 color,
             });
         }
-        // Two triangles. `flip` reverses winding for negative-facing quads so
-        // every front face is consistently counter-clockwise.
-        if flip {
-            self.indices
-                .extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        // Choose the split diagonal (0–2 vs 1–3) for smooth AO interpolation.
+        let mut idx = if flip_diagonal {
+            [base + 1, base + 2, base + 3, base + 1, base + 3, base]
         } else {
-            self.indices
-                .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+            [base, base + 1, base + 2, base, base + 2, base + 3]
+        };
+        // Reverse winding for negative-facing quads so every front face stays
+        // consistently counter-clockwise for back-face culling.
+        if reverse_winding {
+            idx.reverse();
         }
+        self.indices.extend_from_slice(&idx);
     }
 }
 
@@ -94,11 +104,17 @@ enum Layer {
     Transparent,
 }
 
-/// Identifies a face for greedy-merge equality: same block, same facing.
+/// Identifies a face for greedy-merge equality: same block, same facing, and
+/// the same four-corner ambient-occlusion pattern. Including AO in the key means
+/// faces only merge where the baked corner shadow is identical — flat open areas
+/// still collapse into big quads, while creases keep their per-cell shading.
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct FaceKey {
     block: BlockId,
     positive: bool,
+    /// Corner occlusion 0..3 (0 = darkest crevice, 3 = fully open), ordered
+    /// `[(-u,-v), (+u,-v), (+u,+v), (-u,+v)]` to match emitted quad corners.
+    ao: [u8; 4],
 }
 
 /// Per-face directional shading for a soft, cosy look. Top faces are brightest,
@@ -132,17 +148,18 @@ fn greedy_pass<S: BlockSampler>(
     out: &mut MeshBuffers,
 ) {
     // Decide whether the face between voxels `a` (lower along axis d) and `b`
-    // (higher) should be emitted in this layer, and to whom it belongs.
-    let face_between = |a: BlockId, b: BlockId| -> Option<FaceKey> {
+    // (higher) should be emitted in this layer, and to whom it belongs. Returns
+    // `(block, positive)`; ambient occlusion is computed separately below.
+    let face_between = |a: BlockId, b: BlockId| -> Option<(BlockId, bool)> {
         let ba = registry.get(a);
         let bb = registry.get(b);
         match layer {
             Layer::Opaque => {
                 // Opaque cube exposed to a non-opaque neighbour.
                 if ba.occludes() && !bb.occludes() {
-                    Some(FaceKey { block: a, positive: true })
+                    Some((a, true))
                 } else if bb.occludes() && !ba.occludes() {
-                    Some(FaceKey { block: b, positive: false })
+                    Some((b, false))
                 } else {
                     None
                 }
@@ -154,9 +171,9 @@ fn greedy_pass<S: BlockSampler>(
                 let a_t = ba.is_visible() && !ba.occludes();
                 let b_t = bb.is_visible() && !bb.occludes();
                 if a_t && a != b && !bb.occludes() {
-                    Some(FaceKey { block: a, positive: true })
+                    Some((a, true))
                 } else if b_t && a != b && !ba.occludes() {
-                    Some(FaceKey { block: b, positive: false })
+                    Some((b, false))
                 } else {
                     None
                 }
@@ -185,7 +202,20 @@ fn greedy_pass<S: BlockSampler>(
                     hi[d] += 1;
                     let a = sampler.block_at(lo[0], lo[1], lo[2]);
                     let b = sampler.block_at(hi[0], hi[1], hi[2]);
-                    mask[n] = face_between(a, b);
+                    mask[n] = face_between(a, b).map(|(block, positive)| {
+                        // AO only matters for the solid world; transparent
+                        // foliage/water stays unshaded (full brightness).
+                        let ao = if layer == Layer::Opaque {
+                            compute_ao(sampler, registry, lo, d, u, v, positive)
+                        } else {
+                            [3; 4]
+                        };
+                        FaceKey {
+                            block,
+                            positive,
+                            ao,
+                        }
+                    });
                     n += 1;
                 }
             }
@@ -249,11 +279,25 @@ fn emit_quad(
     let block = registry.get(key.block);
     let shade = face_shade(d, key.positive);
     let c = block.color;
-    let color = [
+    let base_rgb = [
         (c.r as f32 / 255.0) * shade,
         (c.g as f32 / 255.0) * shade,
         (c.b as f32 / 255.0) * shade,
-        c.a as f32 / 255.0,
+    ];
+    let alpha = c.a as f32 / 255.0;
+
+    // Map AO level 0..3 to a brightness multiplier. 3 (open) = full bright;
+    // 0 (deep crevice) keeps a gentle floor so corners are cosy, not black.
+    let ao_factor = |level: u8| 0.5 + 0.5 * (level as f32 / 3.0);
+    let corner_color = |level: u8| {
+        let f = ao_factor(level);
+        [base_rgb[0] * f, base_rgb[1] * f, base_rgb[2] * f, alpha]
+    };
+    let colors = [
+        corner_color(key.ao[0]),
+        corner_color(key.ao[1]),
+        corner_color(key.ao[2]),
+        corner_color(key.ao[3]),
     ];
 
     let mut base = [0f32; 3];
@@ -278,7 +322,54 @@ fn emit_quad(
     let mut normal = [0f32; 3];
     normal[d] = if key.positive { 1.0 } else { -1.0 };
 
-    out.push_quad([p0, p1, p2, p3], normal, color, !key.positive);
+    // Flip the quad's split diagonal when AO is anisotropic, so the gradient
+    // interpolates smoothly instead of producing a hard diagonal seam.
+    let flip_diagonal = key.ao[0] as i32 + key.ao[2] as i32 > key.ao[1] as i32 + key.ao[3] as i32;
+
+    out.push_quad([p0, p1, p2, p3], colors, normal, !key.positive, flip_diagonal);
+}
+
+/// Compute four-corner ambient occlusion for a face. `lo` is the lower voxel's
+/// local coords with `lo[d]` at the slice; `positive` selects which side the
+/// face looks toward. Occluders are sampled in the layer the face opens into.
+fn compute_ao<S: BlockSampler>(
+    sampler: &S,
+    registry: &BlockRegistry,
+    lo: [i32; 3],
+    d: usize,
+    u: usize,
+    v: usize,
+    positive: bool,
+) -> [u8; 4] {
+    // The empty layer the face opens onto: slice+1 for +d faces, slice for -d.
+    let outer_d = if positive { lo[d] + 1 } else { lo[d] };
+    let i = lo[u];
+    let j = lo[v];
+    let occ = |ou: i32, ov: i32| -> u8 {
+        let mut p = [0i32; 3];
+        p[d] = outer_d;
+        p[u] = i + ou;
+        p[v] = j + ov;
+        registry.get(sampler.block_at(p[0], p[1], p[2])).occludes() as u8
+    };
+    // Vertex order matches emitted corners: (-u,-v), (+u,-v), (+u,+v), (-u,+v).
+    [
+        ao_value(occ(-1, 0), occ(0, -1), occ(-1, -1)),
+        ao_value(occ(1, 0), occ(0, -1), occ(1, -1)),
+        ao_value(occ(1, 0), occ(0, 1), occ(1, 1)),
+        ao_value(occ(-1, 0), occ(0, 1), occ(-1, 1)),
+    ]
+}
+
+/// Classic Minecraft-style vertex AO: two fully-occluding edge neighbours
+/// darken hardest; otherwise subtract the count of occluding neighbours.
+#[inline]
+fn ao_value(side1: u8, side2: u8, corner: u8) -> u8 {
+    if side1 == 1 && side2 == 1 {
+        0
+    } else {
+        3 - (side1 + side2 + corner)
+    }
 }
 
 /// Convenience sampler backed by a single [`ChunkStorage`]: every position
@@ -386,6 +477,36 @@ mod tests {
         // Stone exposes all 6 faces (the -X side touches water, which does not
         // occlude).
         assert_eq!(m.opaque.quad_count(), 6);
+    }
+
+    #[test]
+    fn ambient_occlusion_darkens_inner_corners() {
+        // A lone block's top face, with two occluders placed diagonally above so
+        // that the (+u,+v) corner sees both edge neighbours occluding (AO 0)
+        // while the opposite corner stays fully open (AO 3).
+        let mut s = ChunkStorage::empty();
+        s.set(LocalPos::new(5, 5, 5), blocks::STONE);
+        s.set(LocalPos::new(5, 6, 6), blocks::STONE);
+        s.set(LocalPos::new(6, 6, 5), blocks::STONE);
+        let m = mesh_storage(&s);
+
+        // Gather the green channel of the target block's top face (y == 6,
+        // facing +Y).
+        let greens: Vec<f32> = m
+            .opaque
+            .vertices
+            .iter()
+            .filter(|v| v.normal[1] > 0.5 && (v.position[1] - 6.0).abs() < 1e-3)
+            .map(|v| v.color[1])
+            .collect();
+        assert!(greens.len() >= 4, "expected a top face quad, got {}", greens.len());
+        let min = greens.iter().cloned().fold(f32::INFINITY, f32::min);
+        let max = greens.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        // Darkest corner is the AO floor (0.5×) of the brightest open corner.
+        assert!(
+            (min / max - 0.5).abs() < 0.05,
+            "AO not applied as expected: min {min}, max {max}"
+        );
     }
 
     #[test]
