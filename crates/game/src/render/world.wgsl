@@ -100,6 +100,16 @@ fn fs_main(in : VsOut) -> @location(0) vec4<f32> {
     let sky_bounce = clamp(n.y * 0.5 + 0.5, 0.0, 1.0) * 0.06 * sky_brightness;
     lit += globals.sky_color.rgb * sky_bounce;
 
+    // Specular sun glint on the water surface so lakes sparkle by day.
+    if (in.layer == 5u) {
+        let sun = normalize(globals.sun_dir.xyz);
+        let daylight = clamp(sun.y * 1.5 + 0.3, 0.0, 1.0);
+        let view = normalize(globals.camera_pos.xyz - in.world_pos);
+        let half_v = normalize(sun + view);
+        let spec = pow(max(dot(n, half_v), 0.0), 80.0) * daylight;
+        lit += globals.sun_color.rgb * spec * 0.7;
+    }
+
     // Distance fog → sky colour.
     let dist = length(in.world_pos - globals.camera_pos.xyz);
     let fog_start = globals.camera_pos.w * 0.55;
