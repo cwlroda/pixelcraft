@@ -100,11 +100,14 @@ fn fs_main(in : VsOut) -> @location(0) vec4<f32> {
     let sky_bounce = clamp(n.y * 0.5 + 0.5, 0.0, 1.0) * 0.06 * sky_brightness;
     lit += globals.sky_color.rgb * sky_bounce;
 
-    // Specular sun glint on the water surface so lakes sparkle by day.
+    // Water surface: fresnel sky reflection (lightens at grazing angles) plus a
+    // specular sun glint so lakes shimmer by day.
     if (in.layer == 5u) {
         let sun = normalize(globals.sun_dir.xyz);
         let daylight = clamp(sun.y * 1.5 + 0.3, 0.0, 1.0);
         let view = normalize(globals.camera_pos.xyz - in.world_pos);
+        let fresnel = pow(1.0 - max(dot(n, view), 0.0), 4.0);
+        lit = mix(lit, globals.sky_color.rgb, fresnel * 0.55);
         let half_v = normalize(sun + view);
         let spec = pow(max(dot(n, half_v), 0.0), 80.0) * daylight;
         lit += globals.sun_color.rgb * spec * 0.7;
