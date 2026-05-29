@@ -25,6 +25,8 @@ pub enum EntityKind {
     Butterfly,
     /// A nighttime firefly that drifts and glows.
     Firefly,
+    /// A bird that wheels high in the daytime sky.
+    Bird,
     /// A friendly sentient cat NPC you can talk to.
     Friend,
 }
@@ -91,6 +93,7 @@ impl Entity {
             EntityKind::Friend => (0.3, 0.5),
             EntityKind::Butterfly => (0.18, 0.2),
             EntityKind::Firefly => (0.12, 0.12),
+            EntityKind::Bird => (0.2, 0.2),
         }
     }
 
@@ -211,8 +214,10 @@ impl EntityManager {
             } else {
                 EntityKind::Critter
             }
-        } else if roll < 0.55 {
+        } else if roll < 0.5 {
             EntityKind::Butterfly
+        } else if roll < 0.58 {
+            EntityKind::Bird
         } else {
             EntityKind::Critter
         };
@@ -220,7 +225,8 @@ impl EntityManager {
         let base = Vec3::new(x, surface as f32 + 1.0, z);
         let home = match kind {
             EntityKind::Critter | EntityKind::Friend => base,
-            // Flyers hover a few blocks above the ground.
+            // Birds wheel high overhead; other flyers hover a few blocks up.
+            EntityKind::Bird => base + Vec3::new(0.0, 12.0 + self.rng.next_f32() * 8.0, 0.0),
             _ => base + Vec3::new(0.0, 2.0 + self.rng.next_f32() * 3.0, 0.0),
         };
         let npc = if kind == EntityKind::Friend {
@@ -347,29 +353,35 @@ fn update_entity<Q: SolidQuery>(
             }
             e.on_ground = flags.on_ground();
         }
-        EntityKind::Butterfly | EntityKind::Firefly => {
+        EntityKind::Butterfly | EntityKind::Firefly | EntityKind::Bird => {
             // Gentle wandering orbit around `home`, with a bobbing vertical sine.
             if e.decision_timer <= 0.0 {
                 let theta = rng.next_f32() * std::f32::consts::TAU;
-                let reach = if e.kind == EntityKind::Firefly {
-                    3.0
-                } else {
-                    5.0
+                let reach = match e.kind {
+                    EntityKind::Firefly => 3.0,
+                    EntityKind::Bird => 14.0, // birds roam in wide arcs
+                    _ => 5.0,
                 };
                 e.home += Vec3::new(theta.cos(), 0.0, theta.sin()) * reach * (rng.next_f32());
                 e.decision_timer = 1.0 + rng.next_f32() * 2.0;
-                // Keep the home anchored a sensible height above the terrain.
+                // Keep the home anchored a sensible height above the terrain
+                // (birds stay well above it).
                 let surface =
                     manager.surface_height(e.home.x.floor() as i32, e.home.z.floor() as i32);
-                let min_y = surface as f32 + 2.0;
+                let min_y = surface as f32
+                    + if e.kind == EntityKind::Bird {
+                        12.0
+                    } else {
+                        2.0
+                    };
                 if e.home.y < min_y {
                     e.home.y = min_y;
                 }
             }
-            let speed = if e.kind == EntityKind::Firefly {
-                0.6
-            } else {
-                1.1
+            let speed = match e.kind {
+                EntityKind::Firefly => 0.6,
+                EntityKind::Bird => 1.6,
+                _ => 1.1,
             };
             let to_home = e.home - e.position;
             let bob = (e.phase * 2.0).sin() * 0.35;
@@ -551,6 +563,37 @@ fn append_entity(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, e: &Entity, la
                 p + Vec3::new(-0.09, 0.0, -0.09),
                 p + Vec3::new(0.09, 0.18, 0.09),
                 glow,
+                layer,
+            );
+        }
+        EntityKind::Bird => {
+            // A small dark bird: body with two flapping swept-back wings.
+            let body = Color::rgb(86, 84, 96);
+            let wing = Color::rgb(108, 106, 120);
+            let flap = (e.phase * 9.0).sin() * 0.14;
+            append_box(
+                verts,
+                indices,
+                p + Vec3::new(-0.07, 0.0, -0.10),
+                p + Vec3::new(0.07, 0.12, 0.10),
+                body,
+                layer,
+            );
+            // Wings angled out either side, rising/falling with the flap.
+            append_box(
+                verts,
+                indices,
+                p + Vec3::new(-0.34, 0.04 + flap, -0.04),
+                p + Vec3::new(-0.07, 0.10 + flap, 0.06),
+                wing,
+                layer,
+            );
+            append_box(
+                verts,
+                indices,
+                p + Vec3::new(0.07, 0.04 + flap, -0.04),
+                p + Vec3::new(0.34, 0.10 + flap, 0.06),
+                wing,
                 layer,
             );
         }
