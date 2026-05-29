@@ -138,7 +138,64 @@ pub fn mesh_chunk<S: BlockSampler>(sampler: &S, registry: &BlockRegistry) -> Chu
     let mut mesh = ChunkMesh::default();
     greedy_pass(sampler, registry, Layer::Opaque, &mut mesh.opaque);
     greedy_pass(sampler, registry, Layer::Transparent, &mut mesh.transparent);
+    cross_pass(sampler, registry, &mut mesh.transparent);
     mesh
+}
+
+/// Emit crossed-quad geometry for small plants (flowers, grass, mushrooms).
+/// Each such voxel becomes two diagonal double-sided quads through the cell,
+/// giving a soft billboard look instead of a solid translucent cube.
+fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut MeshBuffers) {
+    for y in 0..N {
+        for z in 0..N {
+            for x in 0..N {
+                let id = sampler.block_at(x, y, z);
+                let block = registry.get(id);
+                if !block.is_cross() {
+                    continue;
+                }
+                let c = block.color;
+                let color = [
+                    c.r as f32 / 255.0,
+                    c.g as f32 / 255.0,
+                    c.b as f32 / 255.0,
+                    c.a as f32 / 255.0,
+                ];
+                let colors = [color; 4];
+                // Inset slightly so plants don't visually merge with neighbours.
+                let (lo, hi) = (0.08, 0.92);
+                let (fx, fy, fz) = (x as f32, y as f32, z as f32);
+                // Upward normal so plants read as bright and sky-lit.
+                let normal = [0.0, 1.0, 0.0];
+                // Diagonal A: (lo,lo) → (hi,hi).
+                out.push_quad(
+                    [
+                        [fx + lo, fy, fz + lo],
+                        [fx + hi, fy, fz + hi],
+                        [fx + hi, fy + 1.0, fz + hi],
+                        [fx + lo, fy + 1.0, fz + lo],
+                    ],
+                    colors,
+                    normal,
+                    false,
+                    false,
+                );
+                // Diagonal B: (hi,lo) → (lo,hi).
+                out.push_quad(
+                    [
+                        [fx + hi, fy, fz + lo],
+                        [fx + lo, fy, fz + hi],
+                        [fx + lo, fy + 1.0, fz + hi],
+                        [fx + hi, fy + 1.0, fz + lo],
+                    ],
+                    colors,
+                    normal,
+                    false,
+                    false,
+                );
+            }
+        }
+    }
 }
 
 fn greedy_pass<S: BlockSampler>(
@@ -165,11 +222,12 @@ fn greedy_pass<S: BlockSampler>(
                 }
             }
             Layer::Transparent => {
-                // Visible, non-occluding blocks (water/leaves/flora). Cull the
-                // interface between two of the *same* such block, and anything
-                // hidden behind an opaque neighbour.
-                let a_t = ba.is_visible() && !ba.occludes();
-                let b_t = bb.is_visible() && !bb.occludes();
+                // Visible, non-occluding *cube* blocks (water/leaves/glass).
+                // Cross plants are handled separately. Cull the interface
+                // between two of the same block, and anything behind an opaque
+                // neighbour.
+                let a_t = ba.is_cube() && !ba.occludes();
+                let b_t = bb.is_cube() && !bb.occludes();
                 if a_t && a != b && !bb.occludes() {
                     Some((a, true))
                 } else if b_t && a != b && !ba.occludes() {
@@ -507,6 +565,30 @@ mod tests {
             (min / max - 0.5).abs() < 0.05,
             "AO not applied as expected: min {min}, max {max}"
         );
+    }
+
+    #[test]
+    fn cross_plants_make_two_quads_and_no_cube() {
+        let mut s = ChunkStorage::empty();
+        s.set(LocalPos::new(8, 8, 8), blocks::FLOWER_PINK);
+        let m = mesh_storage(&s);
+        // A flower contributes exactly two crossed quads, all in the transparent
+        // layer, and nothing in the opaque layer.
+        assert!(m.opaque.is_empty());
+        assert_eq!(m.transparent.quad_count(), 2);
+    }
+
+    #[test]
+    fn cross_plant_does_not_cull_block_below() {
+        // Grass block with a flower on top: the grass top face must still render
+        // (the flower doesn't occlude it).
+        let mut s = ChunkStorage::empty();
+        s.set(LocalPos::new(8, 8, 8), blocks::GRASS);
+        s.set(LocalPos::new(8, 9, 8), blocks::TALL_GRASS);
+        let m = mesh_storage(&s);
+        // Grass cube: 6 faces. Plant: 2 quads in transparent.
+        assert_eq!(m.opaque.quad_count(), 6);
+        assert_eq!(m.transparent.quad_count(), 2);
     }
 
     #[test]

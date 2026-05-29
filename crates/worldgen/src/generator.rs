@@ -22,6 +22,13 @@ pub const SEA_LEVEL: i32 = 62;
 /// Largest tree footprint radius; decoration pads columns by this much.
 const DECORATION_MARGIN: i32 = 3;
 
+/// Edge length (blocks) of a structure region; at most one structure per region
+/// keeps cottages spaced out. Must exceed the chunk size so a chunk overlaps
+/// only a couple of regions.
+const STRUCTURE_REGION: i32 = 80;
+/// Maximum structure footprint/height, used to pad the region scan.
+const STRUCTURE_MARGIN: i32 = 8;
+
 /// Deterministic terrain generator. Cloneable and `Send`/`Sync` so worker
 /// threads can each hold one for parallel chunk generation.
 #[derive(Clone)]
@@ -32,6 +39,7 @@ pub struct WorldGenerator {
     temperature_noise: Perlin,
     humidity_noise: Perlin,
     cave_noise: Perlin,
+    ore_noise: Perlin,
 }
 
 /// Per-column terrain summary, reused by the decoration pass.
@@ -52,6 +60,7 @@ impl WorldGenerator {
             temperature_noise: Perlin::new(seed ^ 0x1357_9BDF),
             humidity_noise: Perlin::new(seed ^ 0x2468_ACE0),
             cave_noise: Perlin::new(seed ^ 0xDEAD_BEEF),
+            ore_noise: Perlin::new(seed ^ 0x0FE5_EED0),
         }
     }
 
@@ -158,6 +167,8 @@ impl WorldGenerator {
         // Only relevant for chunks that intersect the surface band.
         if any_solid_possible && chunk_max_y >= SEA_LEVEL {
             self.decorate(pos, &mut storage);
+            // --- Pass 3: structures --------------------------------------
+            self.place_structures(pos, &mut storage);
         }
 
         storage
@@ -199,6 +210,26 @@ impl WorldGenerator {
         if wy >= surface - 3 {
             return profile.subsurface;
         }
+        // Deep stone: scatter ores with 3D noise. Glowing crystals hide in the
+        // depths (rare, a cosy reward for spelunking); coal is commoner higher.
+        if wy < 26 {
+            let c = self.ore_noise.noise3(
+                wx as f32 * 0.11,
+                wy as f32 * 0.11,
+                wz as f32 * 0.11,
+            );
+            if c > 0.78 {
+                return blocks::CRYSTAL;
+            }
+        }
+        let k = self.ore_noise.noise3(
+            wx as f32 * 0.07 + 50.0,
+            wy as f32 * 0.07,
+            wz as f32 * 0.07 - 30.0,
+        );
+        if k > 0.72 {
+            return blocks::COAL_ORE;
+        }
         blocks::STONE
     }
 
@@ -226,6 +257,113 @@ impl WorldGenerator {
                 }
             }
         }
+    }
+
+    /// Place structures (cosy cottages) that intersect this chunk. Uses a
+    /// region grid so a structure straddling a chunk border is stamped
+    /// identically from either side, regardless of generation order.
+    fn place_structures(&self, pos: ChunkPos, storage: &mut ChunkStorage) {
+        let origin = pos.origin();
+        let s = CHUNK_SIZE as i32;
+        let rx0 = (origin.x - STRUCTURE_MARGIN).div_euclid(STRUCTURE_REGION);
+        let rx1 = (origin.x + s - 1).div_euclid(STRUCTURE_REGION);
+        let rz0 = (origin.z - STRUCTURE_MARGIN).div_euclid(STRUCTURE_REGION);
+        let rz1 = (origin.z + s - 1).div_euclid(STRUCTURE_REGION);
+
+        for rz in rz0..=rz1 {
+            for rx in rx0..=rx1 {
+                let mut rng =
+                    SplitMix64::new(hash_coords(self.seed ^ 0x57AB_1E5, rx, rz));
+                // Not every region has a cottage.
+                if rng.next_f32() > 0.55 {
+                    continue;
+                }
+                // Jitter the cottage within the region (leaving an 8-block margin).
+                let span = STRUCTURE_REGION - 16;
+                let bx = rx * STRUCTURE_REGION + 8 + (rng.next_u64() % span as u64) as i32;
+                let bz = rz * STRUCTURE_REGION + 8 + (rng.next_u64() % span as u64) as i32;
+
+                let col = self.column(bx, bz);
+                // Cottages only in gentle, grassy biomes on dry, flat-ish land.
+                if !matches!(col.biome, Biome::Meadow | Biome::Forest) {
+                    continue;
+                }
+                let h00 = col.surface_height;
+                if h00 < SEA_LEVEL + 1 {
+                    continue;
+                }
+                let h40 = self.column(bx + 4, bz).surface_height;
+                let h04 = self.column(bx, bz + 4).surface_height;
+                let h44 = self.column(bx + 4, bz + 4).surface_height;
+                let max = h00.max(h40).max(h04).max(h44);
+                let min = h00.min(h40).min(h04).min(h44);
+                if max - min > 1 {
+                    continue; // too uneven; would float or bury
+                }
+                self.stamp_cottage(storage, origin, bx, bz, min, &mut rng);
+            }
+        }
+    }
+
+    /// Stamp a 5×5 cosy cottage: cobble base, plank walls with glass windows and
+    /// a doorway, a clay-tiled peaked roof, and a lantern glowing inside.
+    fn stamp_cottage(
+        &self,
+        storage: &mut ChunkStorage,
+        origin: pixelcraft_core::coords::BlockPos,
+        bx: i32,
+        bz: i32,
+        floor_y: i32,
+        _rng: &mut SplitMix64,
+    ) {
+        // Clear the building volume so trees/flora don't poke through.
+        for dz in 0..5 {
+            for dx in 0..5 {
+                for dy in 1..=6 {
+                    self.stamp(storage, origin, bx + dx, floor_y + dy, bz + dz, BlockId::AIR, true);
+                }
+            }
+        }
+        // Floor.
+        for dz in 0..5 {
+            for dx in 0..5 {
+                self.stamp(storage, origin, bx + dx, floor_y, bz + dz, blocks::COBBLE, true);
+            }
+        }
+        // Walls (perimeter), 3 high.
+        for dy in 1..=3 {
+            for dz in 0..5 {
+                for dx in 0..5 {
+                    let perimeter = dx == 0 || dx == 4 || dz == 0 || dz == 4;
+                    if !perimeter {
+                        continue;
+                    }
+                    // Doorway: front wall (dz==0), centre column, lower two rows.
+                    if dz == 0 && dx == 2 && dy <= 2 {
+                        continue;
+                    }
+                    // Windows: mid-height centre of each wall.
+                    let window = dy == 2
+                        && ((dx == 2 && (dz == 0 || dz == 4))
+                            || (dz == 2 && (dx == 0 || dx == 4)));
+                    let block = if window { blocks::GLASS } else { blocks::PLANK };
+                    self.stamp(storage, origin, bx + dx, floor_y + dy, bz + dz, block, true);
+                }
+            }
+        }
+        // Roof: full 5×5 cap, then a smaller 3×3 peak.
+        for dz in 0..5 {
+            for dx in 0..5 {
+                self.stamp(storage, origin, bx + dx, floor_y + 4, bz + dz, blocks::ROOF, true);
+            }
+        }
+        for dz in 1..4 {
+            for dx in 1..4 {
+                self.stamp(storage, origin, bx + dx, floor_y + 5, bz + dz, blocks::ROOF, true);
+            }
+        }
+        // A warm lantern glowing inside on the floor.
+        self.stamp(storage, origin, bx + 2, floor_y + 1, bz + 2, blocks::LANTERN, true);
     }
 
     /// Stamp a rounded cosy tree. The trunk sits at the column; the canopy is a
@@ -283,20 +421,29 @@ impl WorldGenerator {
         let pick = rng.next_u64() % 100;
         let block = match biome {
             Biome::Forest => {
-                if pick < 55 {
+                if pick < 35 {
                     blocks::MUSHROOM
+                } else if pick < 60 {
+                    blocks::BERRY_BUSH
                 } else if pick < 80 {
+                    blocks::TALL_GRASS
+                } else if pick < 90 {
                     blocks::FLOWER_PINK
                 } else {
                     blocks::FLOWER_BLUE
                 }
             }
             Biome::Dunes => blocks::PUMPKIN,
+            // Meadows: lush with wispy grass dotted by flowers.
             _ => {
-                if pick < 50 {
+                if pick < 55 {
+                    blocks::TALL_GRASS
+                } else if pick < 78 {
                     blocks::FLOWER_PINK
-                } else {
+                } else if pick < 94 {
                     blocks::FLOWER_BLUE
+                } else {
+                    blocks::BERRY_BUSH
                 }
             }
         };
@@ -381,6 +528,62 @@ mod tests {
         let c = g.generate_chunk(ChunkPos::new(0, 10, 0));
         assert!(c.is_uniform());
         assert_eq!(c.uniform_block(), Some(BlockId::AIR));
+    }
+
+    #[test]
+    fn ores_appear_underground() {
+        let g = WorldGenerator::new(99);
+        let mut ore = 0;
+        // Scan a few deep chunks (world y 0..31).
+        for cx in 0..3 {
+            for cz in 0..3 {
+                let c = g.generate_chunk(ChunkPos::new(cx, 0, cz));
+                for i in 0..pixelcraft_core::coords::CHUNK_VOLUME {
+                    let id = c.get_index(i);
+                    if id == blocks::COAL_ORE || id == blocks::CRYSTAL {
+                        ore += 1;
+                    }
+                }
+            }
+        }
+        assert!(ore > 0, "expected some ore in deep chunks, found none");
+    }
+
+    #[test]
+    fn cottages_generate_on_land() {
+        // A seed with land near the origin; scan the surface band for cottage
+        // blocks (roof + lantern), which only the structure pass produces.
+        let g = WorldGenerator::new(3_400_000_000);
+        let mut roof = 0;
+        let mut lantern = 0;
+        for cy in 1..=2 {
+            for cx in -4..=4 {
+                for cz in -4..=4 {
+                    let c = g.generate_chunk(ChunkPos::new(cx, cy, cz));
+                    for i in 0..pixelcraft_core::coords::CHUNK_VOLUME {
+                        match c.get_index(i) {
+                            id if id == blocks::ROOF => roof += 1,
+                            id if id == blocks::LANTERN => lantern += 1,
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        assert!(roof > 0, "no cottage roofs generated across the sampled area");
+        assert!(lantern > 0, "no cottage lanterns generated");
+    }
+
+    #[test]
+    fn structures_are_deterministic_across_chunk_borders() {
+        // The same world block must resolve identically whether produced as part
+        // of one chunk or its neighbour (structures straddle borders).
+        let g = WorldGenerator::new(3_400_000_000);
+        let a = g.generate_chunk(ChunkPos::new(0, 2, 0));
+        let b = g.generate_chunk(ChunkPos::new(0, 2, 0));
+        for i in 0..pixelcraft_core::coords::CHUNK_VOLUME {
+            assert_eq!(a.get_index(i), b.get_index(i));
+        }
     }
 
     #[test]

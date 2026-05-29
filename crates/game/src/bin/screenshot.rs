@@ -93,7 +93,49 @@ fn main() {
         println!("  wrote {path}");
     }
 
+    // If a cottage generated nearby, frame it for a close-up.
+    if let Some(cottage) = nearest_block(&game, ground, pixelcraft_core::block::blocks::ROOF) {
+        // Aim at the body of the house from well above the treeline so forest
+        // canopies don't block the view.
+        let center = Vec3::new(cottage.x as f32, cottage.y as f32 - 3.0, cottage.z as f32);
+        let eye = center + Vec3::new(10.0, 16.0, 10.0);
+        let forward = (center - eye).normalize();
+        let env = Environment {
+            time_of_day: 0.16,
+            day_length: 600.0,
+        };
+        let camera = Camera::new(eye, forward, aspect);
+        let path = format!("{out_dir}/06_cottage.png");
+        renderer.capture(&camera, &env, &path);
+        println!("  wrote {path} (cottage at {cottage:?})");
+    } else {
+        println!("  (no cottage found near spawn this run)");
+    }
+
     println!("Done. Screenshots in '{out_dir}/'.");
+}
+
+/// Scan loaded chunks for the nearest voxel of `target` to `near`.
+fn nearest_block(
+    game: &Game,
+    near: Vec3,
+    target: pixelcraft_core::block::BlockId,
+) -> Option<pixelcraft_core::coords::BlockPos> {
+    use pixelcraft_core::coords::{LocalPos, CHUNK_VOLUME};
+    let mut best: Option<(f32, pixelcraft_core::coords::BlockPos)> = None;
+    for chunk in game.manager.world.iter_chunks() {
+        for i in 0..CHUNK_VOLUME {
+            if chunk.storage.get_index(i) != target {
+                continue;
+            }
+            let wp = LocalPos::from_index(i).to_block(chunk.pos);
+            let d = Vec3::new(wp.x as f32, wp.y as f32, wp.z as f32).distance_squared(near);
+            if best.map(|(bd, _)| d < bd).unwrap_or(true) {
+                best = Some((d, wp));
+            }
+        }
+    }
+    best.map(|(_, p)| p)
 }
 
 /// Forward direction from yaw/pitch (matches Player::look_dir).

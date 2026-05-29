@@ -35,6 +35,9 @@ pub enum RenderKind {
     TransparentCube,
     /// A translucent fluid surface (water).
     Fluid,
+    /// A small plant drawn as two crossed quads (flowers, grass, mushrooms)
+    /// rather than a full cube — avoids the "solid haze" of cube-shaped flora.
+    Cross,
 }
 
 /// Linear RGB-ish colour used for vertex tinting before textures land.
@@ -91,6 +94,22 @@ impl Block {
     pub fn is_fluid(&self) -> bool {
         matches!(self.render, RenderKind::Fluid)
     }
+
+    /// A crossed-quad plant rather than a cube.
+    #[inline]
+    pub fn is_cross(&self) -> bool {
+        matches!(self.render, RenderKind::Cross)
+    }
+
+    /// A full-cube visible block (opaque, transparent or fluid) — i.e. anything
+    /// the greedy cube mesher should generate faces for. Excludes cross plants.
+    #[inline]
+    pub fn is_cube(&self) -> bool {
+        matches!(
+            self.render,
+            RenderKind::OpaqueCube | RenderKind::TransparentCube | RenderKind::Fluid
+        )
+    }
 }
 
 /// Stable well-known block ids. Keep in sync with [`BlockRegistry::with_defaults`].
@@ -111,6 +130,14 @@ pub mod blocks {
     pub const LANTERN: BlockId = BlockId(12);
     pub const MUSHROOM: BlockId = BlockId(13);
     pub const PUMPKIN: BlockId = BlockId(14);
+    pub const GLASS: BlockId = BlockId(15);
+    pub const COBBLE: BlockId = BlockId(16);
+    pub const PATH: BlockId = BlockId(17);
+    pub const CRYSTAL: BlockId = BlockId(18);
+    pub const TALL_GRASS: BlockId = BlockId(19);
+    pub const BERRY_BUSH: BlockId = BlockId(20);
+    pub const ROOF: BlockId = BlockId(21);
+    pub const COAL_ORE: BlockId = BlockId(22);
 }
 
 /// Registry mapping [`BlockId`] to [`Block`] definitions.
@@ -204,7 +231,7 @@ impl BlockRegistry {
         // 9: pink flower
         r.register(Block {
             name: "flower_pink",
-            render: TransparentCube,
+            render: Cross,
             solid: false,
             color: Color::rgb(244, 162, 196),
             light_emission: 0,
@@ -213,7 +240,7 @@ impl BlockRegistry {
         // 10: blue flower
         r.register(Block {
             name: "flower_blue",
-            render: TransparentCube,
+            render: Cross,
             solid: false,
             color: Color::rgb(150, 180, 240),
             light_emission: 0,
@@ -233,7 +260,7 @@ impl BlockRegistry {
         // 13: mushroom — toadstool red
         r.register(Block {
             name: "mushroom",
-            render: TransparentCube,
+            render: Cross,
             solid: false,
             color: Color::rgb(214, 96, 96),
             light_emission: 2,
@@ -241,6 +268,50 @@ impl BlockRegistry {
         });
         // 14: pumpkin — autumn orange
         r.register(opaque("pumpkin", Color::rgb(232, 150, 70), true));
+        // 15: glass — cottage windows, see-through and non-occluding
+        r.register(Block {
+            name: "glass",
+            render: TransparentCube,
+            solid: true,
+            color: Color::rgba(205, 232, 240, 110),
+            light_emission: 0,
+            harvestable: true,
+        });
+        // 16: cobblestone — sturdy build base / ruins
+        r.register(opaque("cobble", Color::rgb(124, 126, 132), true));
+        // 17: path — packed earthy walkway
+        r.register(opaque("path", Color::rgb(168, 138, 96), true));
+        // 18: crystal — glowing cave gem, soft cosy light
+        r.register(Block {
+            name: "crystal",
+            render: OpaqueCube,
+            solid: true,
+            color: Color::rgb(170, 224, 230),
+            light_emission: 11,
+            harvestable: true,
+        });
+        // 19: tall grass — wispy ground cover, non-solid
+        r.register(Block {
+            name: "tall_grass",
+            render: Cross,
+            solid: false,
+            color: Color::rgb(120, 196, 104),
+            light_emission: 0,
+            harvestable: true,
+        });
+        // 20: berry bush — collectible snack, reddish-green
+        r.register(Block {
+            name: "berry_bush",
+            render: Cross,
+            solid: false,
+            color: Color::rgb(176, 96, 110),
+            light_emission: 0,
+            harvestable: true,
+        });
+        // 21: roof — warm clay tile for cottages
+        r.register(opaque("roof", Color::rgb(196, 104, 86), true));
+        // 22: coal ore — speckled dark stone
+        r.register(opaque("coal_ore", Color::rgb(78, 80, 86), true));
 
         r
     }
