@@ -10,6 +10,18 @@ use glam::Vec3;
 use pixelcraft_game::{Game, StreamConfig};
 use pixelcraft_physics::MovementInput;
 
+/// With the `render` feature, launch the real windowed game.
+#[cfg(feature = "render")]
+fn main() {
+    let seed = std::env::args()
+        .nth(1)
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0xC0FFEE);
+    pixelcraft_game::render::run(seed);
+}
+
+/// Without a GPU/display, run the self-checking headless simulation.
+#[cfg(not(feature = "render"))]
 fn main() {
     println!("🐈 PixelCraft — cosy voxel cat world");
     println!("   (headless simulation; GPU renderer runs where a display is available)\n");

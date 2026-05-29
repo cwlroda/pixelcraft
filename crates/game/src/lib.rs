@@ -5,13 +5,18 @@
 //! the binary (`main.rs`) and consumes these systems.
 
 pub mod camera;
+pub mod environment;
 pub mod interaction;
 pub mod inventory;
 pub mod raycast;
 pub mod sampler;
 pub mod streaming;
 
+#[cfg(any(feature = "render", feature = "capture"))]
+pub mod render;
+
 pub use camera::{Camera, Frustum};
+pub use environment::Environment;
 pub use interaction::{mine, place, target, Interaction, REACH};
 pub use inventory::{Inventory, HOTBAR};
 pub use raycast::{cast, RayHit};

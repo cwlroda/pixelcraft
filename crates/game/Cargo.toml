@@ -12,6 +12,18 @@ path = "src/lib.rs"
 name = "pixelcraft"
 path = "src/main.rs"
 
+[[bin]]
+name = "screenshot"
+path = "src/bin/screenshot.rs"
+required-features = ["capture"]
+
+[features]
+# The windowed GPU renderer. Off by default so headless environments (CI,
+# servers) build and test the simulation without a GPU/display.
+render = ["dep:wgpu", "dep:winit", "dep:pollster"]
+# Offscreen rendering to PNG, for headless screenshot capture (no display).
+capture = ["dep:wgpu", "dep:pollster", "dep:png"]
+
 [dependencies]
 pixelcraft-core.workspace = true
 pixelcraft-worldgen.workspace = true
@@ -20,3 +32,8 @@ pixelcraft-physics.workspace = true
 glam.workspace = true
 bytemuck.workspace = true
 ahash.workspace = true
+
+wgpu = { version = "22", optional = true }
+winit = { version = "0.30", optional = true }
+pollster = { version = "0.3", optional = true }
+png = { version = "0.17", optional = true }

@@ -88,7 +88,8 @@ pub fn cast_filtered(
     );
 
     let mut last_normal = IVec3::ZERO;
-    let mut t = 0.0f32;
+    // Distance travelled so far along the ray; set when we cross each boundary.
+    let mut t;
 
     // Bound the iteration count to avoid pathological loops.
     let max_steps = (max_dist.ceil() as i32 + 1) * 3;
