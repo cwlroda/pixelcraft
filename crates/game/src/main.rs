@@ -34,7 +34,7 @@ fn main() {
     let mut wish = Vec3::ZERO;
     loop {
         // After landing, wander the cat around to exercise streaming.
-        if game.player.on_ground && frame % 240 == 0 {
+        if game.player.on_ground && frame.is_multiple_of(240) {
             let a = (frame as f32) * 0.01;
             wish = Vec3::new(a.cos(), 0.0, a.sin());
             game.player.apply_look(0.3, 0.0);
@@ -46,7 +46,7 @@ fn main() {
         };
         game.update(input, dt);
 
-        if frame % 120 == 0 {
+        if frame.is_multiple_of(120) {
             let s = game.manager.stats();
             println!(
                 "frame {frame:>5} | pos ({:>7.1},{:>6.1},{:>7.1}) | chunks {:>4} meshed {:>4} inflight {:>3} | voxel mem {:>5} KiB",

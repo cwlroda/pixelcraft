@@ -258,7 +258,7 @@ impl EntityManager {
             }
             let to = (e.position + Vec3::new(0.0, 0.4, 0.0)) - eye;
             let dist = to.length();
-            if dist > 5.0 || dist < 0.01 {
+            if !(0.01..=5.0).contains(&dist) {
                 continue;
             }
             let align = to.normalize().dot(look);

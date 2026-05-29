@@ -278,7 +278,7 @@ impl WorldGenerator {
         for rz in rz0..=rz1 {
             for rx in rx0..=rx1 {
                 let mut rng =
-                    SplitMix64::new(hash_coords(self.seed ^ 0x57AB_1E5, rx, rz));
+                    SplitMix64::new(hash_coords(self.seed ^ 0x057A_B1E5, rx, rz));
                 // Not every region has a cottage.
                 if rng.next_f32() > 0.55 {
                     continue;
@@ -374,6 +374,7 @@ impl WorldGenerator {
 
     /// Stamp a tree whose species/shape suits the biome. Only blocks inside the
     /// target chunk are written.
+    #[allow(clippy::too_many_arguments)]
     fn place_tree(
         &self,
         storage: &mut ChunkStorage,
@@ -406,6 +407,7 @@ impl WorldGenerator {
     }
 
     /// A rounded broadleaf tree (oak / cherry) with a squashed-sphere canopy.
+    #[allow(clippy::too_many_arguments)]
     fn place_blob_tree(
         &self,
         storage: &mut ChunkStorage,
@@ -483,6 +485,7 @@ impl WorldGenerator {
         self.stamp(storage, origin, wx, y, wz, blocks::PINE_LEAVES, false);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn place_flora(
         &self,
         storage: &mut ChunkStorage,
@@ -528,6 +531,7 @@ impl WorldGenerator {
     /// Write a block at world coordinates if it falls within this chunk.
     /// `overwrite` controls whether an existing non-air block is replaced.
     #[inline]
+    #[allow(clippy::too_many_arguments)]
     fn stamp(
         &self,
         storage: &mut ChunkStorage,

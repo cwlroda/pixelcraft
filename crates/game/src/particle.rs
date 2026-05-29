@@ -31,7 +31,7 @@ impl ParticleSystem {
     pub fn new(seed: u64) -> Self {
         Self {
             particles: Vec::new(),
-            rng: SplitMix64::new(seed ^ 0x9A7C_1EE),
+            rng: SplitMix64::new(seed ^ 0x09A7_C1EE),
             max: 1400,
         }
     }

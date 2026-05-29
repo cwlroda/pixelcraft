@@ -39,7 +39,7 @@ const fn words_needed(bits: u32) -> usize {
         0
     } else {
         let epw = entries_per_word(bits);
-        (CHUNK_VOLUME + epw - 1) / epw
+        CHUNK_VOLUME.div_ceil(epw)
     }
 }
 
