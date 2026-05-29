@@ -113,15 +113,27 @@ mod tests {
 
     #[test]
     fn daylight_brighter_at_noon_than_midnight() {
-        let noon = Environment { time_of_day: 0.25, day_length: 600.0 };
-        let midnight = Environment { time_of_day: 0.75, day_length: 600.0 };
+        let noon = Environment {
+            time_of_day: 0.25,
+            day_length: 600.0,
+        };
+        let midnight = Environment {
+            time_of_day: 0.75,
+            day_length: 600.0,
+        };
         assert!(noon.daylight() > midnight.daylight());
     }
 
     #[test]
     fn zenith_is_darker_at_night_and_in_gamut() {
-        let noon = Environment { time_of_day: 0.25, day_length: 600.0 };
-        let midnight = Environment { time_of_day: 0.75, day_length: 600.0 };
+        let noon = Environment {
+            time_of_day: 0.25,
+            day_length: 600.0,
+        };
+        let midnight = Environment {
+            time_of_day: 0.75,
+            day_length: 600.0,
+        };
         assert!(noon.zenith_color().length() > midnight.zenith_color().length());
         for e in [&noon, &midnight] {
             let z = e.zenith_color();

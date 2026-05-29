@@ -110,15 +110,18 @@ impl QuestLog {
 
     /// Objective text + (done, total) for the HUD.
     pub fn hud(&self) -> Option<(String, (u32, u32))> {
-        self.current().map(|q| {
-            (q.title.to_string(), (self.progress.min(q.target), q.target))
-        })
+        self.current()
+            .map(|q| (q.title.to_string(), (self.progress.min(q.target), q.target)))
     }
 
     /// Report a collected block. Returns any reward to grant if this completed
     /// the active quest.
     pub fn on_collect(&mut self, id: BlockId, count: u32) -> Vec<(BlockId, u32)> {
-        if self.current().map(|q| q.matches_collect(id)).unwrap_or(false) {
+        if self
+            .current()
+            .map(|q| q.matches_collect(id))
+            .unwrap_or(false)
+        {
             self.advance_progress(count)
         } else {
             Vec::new()

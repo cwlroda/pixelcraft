@@ -33,11 +33,13 @@ impl BlockSampler for ChunkNeighborSampler<'_> {
     #[inline]
     fn block_at(&self, x: i32, y: i32, z: i32) -> BlockId {
         if (0..N).contains(&x) && (0..N).contains(&y) && (0..N).contains(&z) {
-            self.center
-                .get(LocalPos::new(x as u8, y as u8, z as u8))
+            self.center.get(LocalPos::new(x as u8, y as u8, z as u8))
         } else {
-            self.world
-                .block_at(BlockPos::new(self.origin.x + x, self.origin.y + y, self.origin.z + z))
+            self.world.block_at(BlockPos::new(
+                self.origin.x + x,
+                self.origin.y + y,
+                self.origin.z + z,
+            ))
         }
     }
 }
@@ -83,7 +85,10 @@ mod tests {
         world.insert_chunk(ChunkPos::new(0, 0, 0), ChunkStorage::empty());
         world.set_block(BlockPos::new(1, 1, 1), blocks::STONE);
         world.set_block(BlockPos::new(2, 1, 1), blocks::WATER);
-        let q = WorldSolid { world: &world, registry: &reg };
+        let q = WorldSolid {
+            world: &world,
+            registry: &reg,
+        };
         assert!(q.is_solid(BlockPos::new(1, 1, 1)));
         assert!(!q.is_solid(BlockPos::new(2, 1, 1))); // water is not solid
         assert!(!q.is_solid(BlockPos::new(5, 5, 5))); // air

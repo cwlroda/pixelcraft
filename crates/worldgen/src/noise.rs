@@ -107,7 +107,11 @@ impl Perlin {
         let ba = p[b & 511] as usize + zi;
         let bb = p[(b + 1) & 511] as usize + zi;
         let g = Self::grad3;
-        let x1 = lerp(g(p[aa & 511], xf, yf, zf), g(p[ba & 511], xf - 1.0, yf, zf), u);
+        let x1 = lerp(
+            g(p[aa & 511], xf, yf, zf),
+            g(p[ba & 511], xf - 1.0, yf, zf),
+            u,
+        );
         let x2 = lerp(
             g(p[ab & 511], xf, yf - 1.0, zf),
             g(p[bb & 511], xf - 1.0, yf - 1.0, zf),

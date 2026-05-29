@@ -100,7 +100,8 @@ impl Renderer {
     pub fn update_highlight(&mut self, block: Option<pixelcraft_core::coords::BlockPos>) {
         match block {
             Some(p) => {
-                let (v, i) = super::scene::highlight_geometry(p.x, p.y, p.z, self.scene.white_layer());
+                let (v, i) =
+                    super::scene::highlight_geometry(p.x, p.y, p.z, self.scene.white_layer());
                 self.scene.upload_highlight(&v, &i);
             }
             None => self.scene.upload_highlight(&[], &[]),
@@ -137,8 +138,13 @@ impl Renderer {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("frame-encoder"),
                 });
-        self.scene
-            .encode(&mut encoder, &view, &self.depth_view, env.sky_color(), &frustum);
+        self.scene.encode(
+            &mut encoder,
+            &view,
+            &self.depth_view,
+            env.sky_color(),
+            &frustum,
+        );
         self.scene.queue.submit(Some(encoder.finish()));
         frame.present();
         Ok(())

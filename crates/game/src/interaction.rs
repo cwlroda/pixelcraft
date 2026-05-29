@@ -21,22 +21,13 @@ pub enum Interaction {
 }
 
 /// Find the block currently targeted by the look ray, if any.
-pub fn target(
-    mgr: &ChunkManager,
-    eye: Vec3,
-    look: Vec3,
-) -> Option<RayHit> {
+pub fn target(mgr: &ChunkManager, eye: Vec3, look: Vec3) -> Option<RayHit> {
     raycast::cast(&mgr.world, &mgr.registry, eye, look, REACH)
 }
 
 /// Mine the targeted block: replace it with air and, if harvestable, add it to
 /// the inventory.
-pub fn mine(
-    mgr: &mut ChunkManager,
-    inv: &mut Inventory,
-    eye: Vec3,
-    look: Vec3,
-) -> Interaction {
+pub fn mine(mgr: &mut ChunkManager, inv: &mut Inventory, eye: Vec3, look: Vec3) -> Interaction {
     let Some(hit) = target(mgr, eye, look) else {
         return Interaction::Nothing;
     };
@@ -74,7 +65,11 @@ pub fn place(
     // Don't let the cat trap itself: reject placement intersecting its body.
     let block_box = Aabb::new(
         Vec3::new(cell.x as f32, cell.y as f32, cell.z as f32),
-        Vec3::new(cell.x as f32 + 1.0, cell.y as f32 + 1.0, cell.z as f32 + 1.0),
+        Vec3::new(
+            cell.x as f32 + 1.0,
+            cell.y as f32 + 1.0,
+            cell.z as f32 + 1.0,
+        ),
     );
     if player_box.intersects(block_box) {
         return Interaction::Nothing;

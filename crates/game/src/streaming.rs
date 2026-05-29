@@ -381,7 +381,14 @@ impl ChunkManager {
             std::thread::scope(|scope| {
                 let handles: Vec<_> = dirty
                     .chunks(per)
-                    .map(|slice| scope.spawn(|| slice.iter().filter_map(|&p| mesh_one(p)).collect::<Vec<_>>()))
+                    .map(|slice| {
+                        scope.spawn(|| {
+                            slice
+                                .iter()
+                                .filter_map(|&p| mesh_one(p))
+                                .collect::<Vec<_>>()
+                        })
+                    })
                     .collect();
                 handles
                     .into_iter()
@@ -415,9 +422,8 @@ impl ChunkManager {
         if applied && old != block {
             let ob = self.registry.get(old);
             let nb = self.registry.get(block);
-            let lighting_relevant = ob.light_emission > 0
-                || nb.light_emission > 0
-                || ob.occludes() != nb.occludes();
+            let lighting_relevant =
+                ob.light_emission > 0 || nb.light_emission > 0 || ob.occludes() != nb.occludes();
             if lighting_relevant {
                 let c = pos.chunk();
                 for dz in -1..=1 {
@@ -607,7 +613,10 @@ mod tests {
         let p = BlockPos::new(8, 80, 8);
         let original = mgr.world.block_at(p);
         mgr.set_block(p, pixelcraft_core::block::blocks::LANTERN);
-        assert_eq!(mgr.world.block_at(p), pixelcraft_core::block::blocks::LANTERN);
+        assert_eq!(
+            mgr.world.block_at(p),
+            pixelcraft_core::block::blocks::LANTERN
+        );
 
         // Wander far so the edited chunk unloads, then come back.
         settle(&mut mgr, Vec3::new(5000.0, 80.0, 5000.0), 10);
@@ -615,7 +624,10 @@ mod tests {
         settle(&mut mgr, Vec3::new(8.0, 80.0, 8.0), 10);
 
         // The edit must have survived the round-trip.
-        assert_eq!(mgr.world.block_at(p), pixelcraft_core::block::blocks::LANTERN);
+        assert_eq!(
+            mgr.world.block_at(p),
+            pixelcraft_core::block::blocks::LANTERN
+        );
         assert_ne!(original, pixelcraft_core::block::blocks::LANTERN);
     }
 
@@ -625,6 +637,9 @@ mod tests {
         settle(&mut mgr, Vec3::new(8.0, 80.0, 8.0), 10);
         let p = BlockPos::new(8, 80, 8);
         assert!(mgr.set_block(p, pixelcraft_core::block::blocks::LANTERN));
-        assert_eq!(mgr.world.block_at(p), pixelcraft_core::block::blocks::LANTERN);
+        assert_eq!(
+            mgr.world.block_at(p),
+            pixelcraft_core::block::blocks::LANTERN
+        );
     }
 }

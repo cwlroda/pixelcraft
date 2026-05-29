@@ -8,7 +8,9 @@ use ahash::AHashSet;
 use glam::Vec3;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
-use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    DeviceEvent, DeviceId, ElementState, MouseButton, MouseScrollDelta, WindowEvent,
+};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
@@ -87,12 +89,7 @@ impl ApplicationHandler for App {
         });
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         let Some(state) = self.state.as_mut() else {
             return;
         };
@@ -147,7 +144,11 @@ impl ApplicationHandler for App {
                     }
                 }
             }
-            WindowEvent::MouseInput { state: btn_state, button, .. } => {
+            WindowEvent::MouseInput {
+                state: btn_state,
+                button,
+                ..
+            } => {
                 if btn_state == ElementState::Pressed {
                     match button {
                         MouseButton::Left => state.mine_queued = true,
@@ -166,7 +167,10 @@ impl ApplicationHandler for App {
                     MouseScrollDelta::PixelDelta(p) => p.y as f32,
                 };
                 if scroll.abs() > 0.0 {
-                    state.game.inventory.scroll(if scroll > 0.0 { -1 } else { 1 });
+                    state
+                        .game
+                        .inventory
+                        .scroll(if scroll > 0.0 { -1 } else { 1 });
                 }
             }
             WindowEvent::RedrawRequested => {
@@ -179,12 +183,7 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn device_event(
-        &mut self,
-        _event_loop: &ActiveEventLoop,
-        _id: DeviceId,
-        event: DeviceEvent,
-    ) {
+    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
         if let DeviceEvent::MouseMotion { delta } = event {
             if let Some(state) = self.state.as_mut() {
                 if state.mouse_grabbed {

@@ -86,7 +86,8 @@ impl GpuScene {
             mapped_at_creation: false,
         });
         // Procedural block-texture array (one tile per block + a white tile).
-        let atlas = super::textures::build_atlas(&pixelcraft_core::block::BlockRegistry::with_defaults());
+        let atlas =
+            super::textures::build_atlas(&pixelcraft_core::block::BlockRegistry::with_defaults());
         let atlas_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("block-atlas"),
             size: wgpu::Extent3d {
@@ -287,8 +288,11 @@ impl GpuScene {
             let origin = pos.origin();
             let offset = Vec3::new(origin.x as f32, origin.y as f32, origin.z as f32);
             let opaque = self.upload_layer(&mesh.opaque.vertices, &mesh.opaque.indices, offset);
-            let transparent =
-                self.upload_layer(&mesh.transparent.vertices, &mesh.transparent.indices, offset);
+            let transparent = self.upload_layer(
+                &mesh.transparent.vertices,
+                &mesh.transparent.indices,
+                offset,
+            );
             uploads.push((*pos, opaque, transparent, version));
         }
         for (pos, opaque, transparent, version) in uploads {
@@ -330,16 +334,20 @@ impl GpuScene {
                 }
             })
             .collect();
-        let vertices = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("chunk-vertices"),
-            contents: bytemuck::cast_slice(&world_verts),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let indices_buf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("chunk-indices"),
-            contents: bytemuck::cast_slice(indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        let vertices = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("chunk-vertices"),
+                contents: bytemuck::cast_slice(&world_verts),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let indices_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("chunk-indices"),
+                contents: bytemuck::cast_slice(indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
         Some(GpuLayer {
             vertices,
             indices: indices_buf,
@@ -358,7 +366,12 @@ impl GpuScene {
         let vp = camera.view_projection();
         let globals = Globals {
             view_proj: vp.to_cols_array_2d(),
-            camera_pos: [camera.eye.x, camera.eye.y, camera.eye.z, self.render_distance],
+            camera_pos: [
+                camera.eye.x,
+                camera.eye.y,
+                camera.eye.z,
+                self.render_distance,
+            ],
             sun_dir: [sun.x, sun.y, sun.z, self.time],
             // .a carries the sky-light brightness used to combine baked sky vs
             // block light (warm floor at night so it's never pitch black).
@@ -631,10 +644,7 @@ fn make_sky_pipeline(
 
 /// Pipeline for the flat 2D HUD overlay: alpha-blended coloured quads in NDC,
 /// always drawn on top (depth test Always, no depth write).
-fn make_ui_pipeline(
-    device: &wgpu::Device,
-    format: wgpu::TextureFormat,
-) -> wgpu::RenderPipeline {
+fn make_ui_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("ui-shader"),
         source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()),
@@ -707,7 +717,8 @@ pub fn highlight_geometry(bx: i32, by: i32, bz: i32, layer: u32) -> (Vec<Vertex>
     let o = Vec3::new(bx as f32, by as f32, bz as f32);
     let color = [0.05, 0.05, 0.06, 0.85];
     // For each of the 3 axes, draw the 4 edges parallel to it.
-    let mut bar = |a: Vec3, b: Vec3| push_box(&mut verts, &mut indices, o + a, o + b, color, layer, t);
+    let mut bar =
+        |a: Vec3, b: Vec3| push_box(&mut verts, &mut indices, o + a, o + b, color, layer, t);
     // Edges along X.
     for &y in &[lo, hi] {
         for &z in &[lo, hi] {
@@ -742,12 +753,23 @@ fn push_box(
     let min = a.min(b) - Vec3::splat(t * 0.5);
     let max = a.max(b) + Vec3::splat(t * 0.5);
     let corners = [
-        [min.x, min.y, min.z], [max.x, min.y, min.z], [max.x, max.y, min.z], [min.x, max.y, min.z],
-        [min.x, min.y, max.z], [max.x, min.y, max.z], [max.x, max.y, max.z], [min.x, max.y, max.z],
+        [min.x, min.y, min.z],
+        [max.x, min.y, min.z],
+        [max.x, max.y, min.z],
+        [min.x, max.y, min.z],
+        [min.x, min.y, max.z],
+        [max.x, min.y, max.z],
+        [max.x, max.y, max.z],
+        [min.x, max.y, max.z],
     ];
     // 6 faces as index quads into the 8 corners.
     let faces = [
-        [0u32, 1, 2, 3], [5, 4, 7, 6], [4, 0, 3, 7], [1, 5, 6, 2], [3, 2, 6, 7], [4, 5, 1, 0],
+        [0u32, 1, 2, 3],
+        [5, 4, 7, 6],
+        [4, 0, 3, 7],
+        [1, 5, 6, 2],
+        [3, 2, 6, 7],
+        [4, 5, 1, 0],
     ];
     for f in faces {
         let base = verts.len() as u32;

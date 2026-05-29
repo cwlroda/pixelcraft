@@ -124,7 +124,11 @@ impl Player {
         };
         let target = wish * target_speed;
 
-        let accel = if self.on_ground { cfg.accel } else { cfg.air_control };
+        let accel = if self.on_ground {
+            cfg.accel
+        } else {
+            cfg.air_control
+        };
         let horiz = Vec3::new(self.velocity.x, 0.0, self.velocity.z);
         let mut new_horiz = horiz + (target - horiz) * (accel * dt).min(1.0);
 
@@ -210,7 +214,11 @@ mod tests {
             p.update(input, 1.0 / 60.0, &floor);
         }
         assert!(p.on_ground, "player should have landed");
-        assert!((p.position.y - 0.0).abs() < 1e-2, "rest height wrong: {}", p.position.y);
+        assert!(
+            (p.position.y - 0.0).abs() < 1e-2,
+            "rest height wrong: {}",
+            p.position.y
+        );
         assert!(p.velocity.y.abs() < 1e-3);
     }
 
@@ -241,7 +249,11 @@ mod tests {
         for _ in 0..60 {
             p.update(input, 1.0 / 60.0, &floor);
         }
-        assert!(p.position.x > start_x + 1.0, "player did not walk: {}", p.position.x);
+        assert!(
+            p.position.x > start_x + 1.0,
+            "player did not walk: {}",
+            p.position.x
+        );
     }
 
     #[test]
@@ -258,7 +270,10 @@ mod tests {
         for _ in 0..20 {
             p.update(jump, 1.0 / 60.0, &floor);
         }
-        assert!(p.velocity.y < vy_after_first, "gravity should reduce upward velocity");
+        assert!(
+            p.velocity.y < vy_after_first,
+            "gravity should reduce upward velocity"
+        );
     }
 
     #[test]

@@ -148,7 +148,15 @@ fn generate(name: &str, base: Color, idx: u64) -> Canvas {
                 for x in 0..TILE {
                     let f = 0.9 + noise(x, y) * 0.08;
                     let dark = noise(x, y) > 0.78;
-                    c.set(x, y, if dark { [22, 22, 26, 255] } else { shade(base, f) });
+                    c.set(
+                        x,
+                        y,
+                        if dark {
+                            [22, 22, 26, 255]
+                        } else {
+                            shade(base, f)
+                        },
+                    );
                 }
             }
         }
@@ -183,7 +191,8 @@ fn generate(name: &str, base: Color, idx: u64) -> Canvas {
             let frame = mix(base, Color::rgb(90, 60, 30), 0.6);
             for y in 0..TILE {
                 for x in 0..TILE {
-                    let border = x == 0 || y == 0 || x == TILE - 1 || y == TILE - 1 || x == 7 || y == 7;
+                    let border =
+                        x == 0 || y == 0 || x == TILE - 1 || y == TILE - 1 || x == 7 || y == 7;
                     if border {
                         c.set(x, y, shade(frame, 1.0));
                     } else {

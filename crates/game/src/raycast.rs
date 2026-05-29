@@ -75,9 +75,21 @@ pub fn cast_filtered(
 
     // Distance (in t) to cross one voxel along each axis.
     let inv = Vec3::new(
-        if dir.x != 0.0 { 1.0 / dir.x.abs() } else { f32::INFINITY },
-        if dir.y != 0.0 { 1.0 / dir.y.abs() } else { f32::INFINITY },
-        if dir.z != 0.0 { 1.0 / dir.z.abs() } else { f32::INFINITY },
+        if dir.x != 0.0 {
+            1.0 / dir.x.abs()
+        } else {
+            f32::INFINITY
+        },
+        if dir.y != 0.0 {
+            1.0 / dir.y.abs()
+        } else {
+            f32::INFINITY
+        },
+        if dir.z != 0.0 {
+            1.0 / dir.z.abs()
+        } else {
+            f32::INFINITY
+        },
     );
 
     // Distance (in t) to the first voxel boundary on each axis.
@@ -160,7 +172,13 @@ mod tests {
         let target = BlockPos::new(5, 2, 2);
         let w = world_with_block(target);
         let reg = BlockRegistry::with_defaults();
-        let hit = cast(&w, &reg, Vec3::new(0.5, 2.5, 2.5), Vec3::new(1.0, 0.0, 0.0), 20.0);
+        let hit = cast(
+            &w,
+            &reg,
+            Vec3::new(0.5, 2.5, 2.5),
+            Vec3::new(1.0, 0.0, 0.0),
+            20.0,
+        );
         let hit = hit.expect("ray should hit the block");
         assert_eq!(hit.block, target);
         // Entered through the -X face.
@@ -173,7 +191,13 @@ mod tests {
         let w = world_with_block(BlockPos::new(5, 2, 2));
         let reg = BlockRegistry::with_defaults();
         // Fire upward where there's nothing.
-        let hit = cast(&w, &reg, Vec3::new(0.5, 2.5, 2.5), Vec3::new(0.0, 1.0, 0.0), 20.0);
+        let hit = cast(
+            &w,
+            &reg,
+            Vec3::new(0.5, 2.5, 2.5),
+            Vec3::new(0.0, 1.0, 0.0),
+            20.0,
+        );
         assert!(hit.is_none());
     }
 
@@ -182,7 +206,13 @@ mod tests {
         let target = BlockPos::new(18, 2, 2);
         let w = world_with_block(target);
         let reg = BlockRegistry::with_defaults();
-        let hit = cast(&w, &reg, Vec3::new(0.5, 2.5, 2.5), Vec3::new(1.0, 0.0, 0.0), 5.0);
+        let hit = cast(
+            &w,
+            &reg,
+            Vec3::new(0.5, 2.5, 2.5),
+            Vec3::new(1.0, 0.0, 0.0),
+            5.0,
+        );
         assert!(hit.is_none(), "block beyond max_dist should not be hit");
     }
 
@@ -191,10 +221,19 @@ mod tests {
         let target = BlockPos::new(4, 4, 0);
         let w = world_with_block(target);
         let reg = BlockRegistry::with_defaults();
-        let hit = cast(&w, &reg, Vec3::new(0.5, 0.5, 0.5), Vec3::new(1.0, 1.0, 0.0), 20.0);
+        let hit = cast(
+            &w,
+            &reg,
+            Vec3::new(0.5, 0.5, 0.5),
+            Vec3::new(1.0, 1.0, 0.0),
+            20.0,
+        );
         if let Some(h) = hit {
             // Placement cell must be empty and adjacent to the hit.
-            assert_eq!(h.place_pos(), h.block.offset(h.normal.x, h.normal.y, h.normal.z));
+            assert_eq!(
+                h.place_pos(),
+                h.block.offset(h.normal.x, h.normal.y, h.normal.z)
+            );
         }
     }
 }

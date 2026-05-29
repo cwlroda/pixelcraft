@@ -69,7 +69,13 @@ impl ChunkLight {
 
     #[inline]
     fn index(x: i32, y: i32, z: i32) -> Option<usize> {
-        if x < -1 || y < -1 || z < -1 || x > CHUNK_SIZE as i32 || y > CHUNK_SIZE as i32 || z > CHUNK_SIZE as i32 {
+        if x < -1
+            || y < -1
+            || z < -1
+            || x > CHUNK_SIZE as i32
+            || y > CHUNK_SIZE as i32
+            || z > CHUNK_SIZE as i32
+        {
             return None;
         }
         Some(((x + 1) + (y + 1) * Self::DIM + (z + 1) * Self::DIM * Self::DIM) as usize)
@@ -122,8 +128,7 @@ impl MeshBuffers {
         flip_diagonal: bool,
     ) {
         let base = self.vertices.len() as u32;
-        for (((position, color), uv), light) in
-            corners.into_iter().zip(colors).zip(uvs).zip(lights)
+        for (((position, color), uv), light) in corners.into_iter().zip(colors).zip(uvs).zip(lights)
         {
             self.vertices.push(Vertex {
                 position,
@@ -202,10 +207,10 @@ struct FaceKey {
 /// that reads well before real lighting lands.
 fn face_shade(axis: usize, positive: bool) -> f32 {
     match (axis, positive) {
-        (1, true) => 1.0,   // +Y top
-        (1, false) => 0.5,  // -Y bottom
-        (0, _) => 0.78,     // ±X
-        (2, _) => 0.65,     // ±Z
+        (1, true) => 1.0,  // +Y top
+        (1, false) => 0.5, // -Y bottom
+        (0, _) => 0.78,    // ±X
+        (2, _) => 0.65,    // ±Z
         _ => 0.8,
     }
 }
@@ -228,7 +233,13 @@ pub fn mesh_chunk_lit<S: BlockSampler>(
 ) -> ChunkMesh {
     let mut mesh = ChunkMesh::default();
     greedy_pass(sampler, registry, light, Layer::Opaque, &mut mesh.opaque);
-    greedy_pass(sampler, registry, light, Layer::Transparent, &mut mesh.transparent);
+    greedy_pass(
+        sampler,
+        registry,
+        light,
+        Layer::Transparent,
+        &mut mesh.transparent,
+    );
     cross_pass(sampler, registry, light, &mut mesh.transparent);
     mesh
 }
@@ -500,7 +511,16 @@ fn emit_quad(
         [key.light[2].0 as f32 / 15.0, key.light[2].1 as f32 / 15.0],
         [key.light[3].0 as f32 / 15.0, key.light[3].1 as f32 / 15.0],
     ];
-    out.push_quad([p0, p1, p2, p3], colors, uvs, layer, lights, normal, !key.positive, flip_diagonal);
+    out.push_quad(
+        [p0, p1, p2, p3],
+        colors,
+        uvs,
+        layer,
+        lights,
+        normal,
+        !key.positive,
+        flip_diagonal,
+    );
 }
 
 /// Smooth lighting: for each of the four face corners, average the `(sky,
@@ -535,12 +555,7 @@ fn compute_light(
         let blk = (a.1 + b.1 + c.1 + e.1) / 4;
         (sky as u8, blk as u8)
     };
-    [
-        corner(-1, -1),
-        corner(1, -1),
-        corner(1, 1),
-        corner(-1, 1),
-    ]
+    [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)]
 }
 
 /// Compute four-corner ambient occlusion for a face. `lo` is the lower voxel's
@@ -629,7 +644,11 @@ mod tests {
         let mut s = ChunkStorage::empty();
         s.set(LocalPos::new(5, 5, 5), blocks::STONE);
         let m = mesh_storage(&s);
-        assert_eq!(m.opaque.quad_count(), 6, "a lone cube should expose 6 faces");
+        assert_eq!(
+            m.opaque.quad_count(),
+            6,
+            "a lone cube should expose 6 faces"
+        );
         assert_eq!(m.opaque.vertices.len(), 24);
         assert_eq!(m.opaque.indices.len(), 36);
     }
@@ -687,7 +706,11 @@ mod tests {
         s.set(LocalPos::new(8, 8, 8), blocks::WATER);
         s.set(LocalPos::new(9, 8, 8), blocks::STONE);
         let m = mesh_storage(&s);
-        assert_eq!(m.transparent.quad_count(), 5, "hidden water face not culled");
+        assert_eq!(
+            m.transparent.quad_count(),
+            5,
+            "hidden water face not culled"
+        );
         // Stone exposes all 6 faces (the -X side touches water, which does not
         // occlude).
         assert_eq!(m.opaque.quad_count(), 6);
@@ -713,7 +736,11 @@ mod tests {
             .filter(|v| v.normal[1] > 0.5 && (v.position[1] - 6.0).abs() < 1e-3)
             .map(|v| v.color[1])
             .collect();
-        assert!(greens.len() >= 4, "expected a top face quad, got {}", greens.len());
+        assert!(
+            greens.len() >= 4,
+            "expected a top face quad, got {}",
+            greens.len()
+        );
         let min = greens.iter().cloned().fold(f32::INFINITY, f32::min);
         let max = greens.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
         // Darkest corner is the AO floor (0.5×) of the brightest open corner.

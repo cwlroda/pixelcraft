@@ -206,7 +206,11 @@ mod tests {
         // Box just above the floor, falling.
         let b = Aabb::from_feet(Vec3::new(0.5, 5.0, 0.5), 0.3, 0.8);
         let (resolved, flags) = move_and_collide(b, Vec3::new(0.0, -10.0, 0.0), &floor);
-        assert!((resolved.min.y - 0.0).abs() < 1e-3, "feet not at floor: {}", resolved.min.y);
+        assert!(
+            (resolved.min.y - 0.0).abs() < 1e-3,
+            "feet not at floor: {}",
+            resolved.min.y
+        );
         assert!(flags.on_ground());
     }
 
@@ -226,9 +230,17 @@ mod tests {
         // Try to move diagonally into the wall (+x, +z).
         let (resolved, flags) = move_and_collide(b, Vec3::new(5.0, 0.0, 2.0), &wall);
         // X is blocked (box max.x can't exceed 1.0), but Z slides freely.
-        assert!(resolved.max.x <= 1.0 + 1e-4, "penetrated wall: {}", resolved.max.x);
+        assert!(
+            resolved.max.x <= 1.0 + 1e-4,
+            "penetrated wall: {}",
+            resolved.max.x
+        );
         assert!(flags.pos_x);
-        assert!((resolved.min.z - (0.2 + 2.0)).abs() < 1e-3, "z did not slide: {}", resolved.min.z);
+        assert!(
+            (resolved.min.z - (0.2 + 2.0)).abs() < 1e-3,
+            "z did not slide: {}",
+            resolved.min.z
+        );
         assert!(!flags.pos_z);
     }
 
@@ -238,7 +250,11 @@ mod tests {
         let ceil = |p: BlockPos| p.y >= 3;
         let b = Aabb::from_feet(Vec3::new(0.5, 0.0, 0.5), 0.3, 1.0); // top at y=1
         let (resolved, flags) = move_and_collide(b, Vec3::new(0.0, 10.0, 0.0), &ceil);
-        assert!(resolved.max.y <= 3.0 + 1e-4, "passed ceiling: {}", resolved.max.y);
+        assert!(
+            resolved.max.y <= 3.0 + 1e-4,
+            "passed ceiling: {}",
+            resolved.max.y
+        );
         assert!(flags.hit_ceiling());
     }
 

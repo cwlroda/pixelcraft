@@ -113,7 +113,11 @@ pub fn build_hud(screen_w: u32, screen_h: u32, state: &HudState) -> Vec<UiVertex
     let hh = hours_f as u32;
     let mm = ((hours_f - hh as f32) * 60.0) as u32;
     let clock = format!("{hh:02}:{mm:02}");
-    let tag = if (6..20).contains(&hh) { "DAY" } else { "NIGHT" };
+    let tag = if (6..20).contains(&hh) {
+        "DAY"
+    } else {
+        "NIGHT"
+    };
     let mut top = format!("{tag} {clock}");
     if let Some(w) = &state.weather {
         top.push_str("  ");
@@ -144,15 +148,32 @@ pub fn build_hud(screen_w: u32, screen_h: u32, state: &HudState) -> Vec<UiVertex
         let selected = i == inventory.selected;
 
         if selected {
-            b.rect(sx - 3.0, y - 3.0, slot + 6.0, slot + 6.0, [1.0, 1.0, 1.0, 0.95]);
+            b.rect(
+                sx - 3.0,
+                y - 3.0,
+                slot + 6.0,
+                slot + 6.0,
+                [1.0, 1.0, 1.0, 0.95],
+            );
         }
         b.rect(sx, y, slot, slot, [0.12, 0.12, 0.16, 0.55]);
 
         // Block colour swatch inset in the slot.
         let c = registry.get(id).color;
-        let swatch = [c.r as f32 / 255.0, c.g as f32 / 255.0, c.b as f32 / 255.0, 1.0];
+        let swatch = [
+            c.r as f32 / 255.0,
+            c.g as f32 / 255.0,
+            c.b as f32 / 255.0,
+            1.0,
+        ];
         let pad = 7.0;
-        b.rect(sx + pad, y + pad, slot - pad * 2.0, slot - pad * 2.0, swatch);
+        b.rect(
+            sx + pad,
+            y + pad,
+            slot - pad * 2.0,
+            slot - pad * 2.0,
+            swatch,
+        );
 
         // Held count, bottom-right of the slot.
         let count = inventory.count(id);
@@ -160,17 +181,38 @@ pub fn build_hud(screen_w: u32, screen_h: u32, state: &HudState) -> Vec<UiVertex
             let s = count.to_string();
             let scale = 2.0;
             let tw = super::font::text_width(&s, scale);
-            b.text_shadow(sx + slot - tw - 3.0, y + slot - 7.0 * scale - 2.0, scale, &s, [1.0; 4]);
+            b.text_shadow(
+                sx + slot - tw - 3.0,
+                y + slot - 7.0 * scale - 2.0,
+                scale,
+                &s,
+                [1.0; 4],
+            );
         }
         // Slot number key hint, top-left.
-        b.text(sx + 3.0, y + 3.0, 1.5, &(i + 1).to_string(), [1.0, 1.0, 1.0, 0.5]);
+        b.text(
+            sx + 3.0,
+            y + 3.0,
+            1.5,
+            &(i + 1).to_string(),
+            [1.0, 1.0, 1.0, 0.5],
+        );
     }
 
     // --- Selected block name, centred above the hotbar -------------------
-    let name = registry.get(inventory.selected_block()).name.replace('_', " ");
+    let name = registry
+        .get(inventory.selected_block())
+        .name
+        .replace('_', " ");
     let scale = 3.0;
     let tw = super::font::text_width(&name, scale);
-    b.text_shadow((w - tw) * 0.5, y - 26.0, scale, &name, [1.0, 1.0, 1.0, 0.95]);
+    b.text_shadow(
+        (w - tw) * 0.5,
+        y - 26.0,
+        scale,
+        &name,
+        [1.0, 1.0, 1.0, 0.95],
+    );
 
     // --- Crafting menu ---------------------------------------------------
     if let Some(rows) = &state.crafting {
@@ -192,7 +234,13 @@ pub fn build_hud(screen_w: u32, screen_h: u32, state: &HudState) -> Vec<UiVertex
             let label = format!("{}  {}", i + 1, name);
             b.text_shadow(px + 16.0, ry, 2.5, &label, col);
         }
-        b.text(px + 14.0, py + panel_h - 16.0, 1.5, "PRESS NUMBER TO CRAFT - C TO CLOSE", [1.0, 1.0, 1.0, 0.5]);
+        b.text(
+            px + 14.0,
+            py + panel_h - 16.0,
+            1.5,
+            "PRESS NUMBER TO CRAFT - C TO CLOSE",
+            [1.0, 1.0, 1.0, 0.5],
+        );
     }
 
     // --- NPC dialogue panel ---------------------------------------------
@@ -205,7 +253,13 @@ pub fn build_hud(screen_w: u32, screen_h: u32, state: &HudState) -> Vec<UiVertex
         b.rect(px, py, panel_w, 4.0, [1.0, 0.85, 0.5, 0.95]); // accent bar
         b.text_shadow(px + 14.0, py + 12.0, 3.0, speaker, [1.0, 0.86, 0.55, 1.0]);
         b.text_shadow(px + 14.0, py + 44.0, 2.5, line, [1.0, 1.0, 1.0, 0.96]);
-        b.text(px + panel_w - 70.0, py + panel_h - 16.0, 1.5, "PRESS E", [1.0, 1.0, 1.0, 0.5]);
+        b.text(
+            px + panel_w - 70.0,
+            py + panel_h - 16.0,
+            1.5,
+            "PRESS E",
+            [1.0, 1.0, 1.0, 0.5],
+        );
     }
 
     b.verts
@@ -233,7 +287,11 @@ mod tests {
         };
         let verts = build_hud(1280, 720, &state);
         assert!(!verts.is_empty());
-        assert_eq!(verts.len() % 6, 0, "quads must be 2 triangles (6 verts) each");
+        assert_eq!(
+            verts.len() % 6,
+            0,
+            "quads must be 2 triangles (6 verts) each"
+        );
         // All NDC positions stay within the clip volume.
         for v in &verts {
             assert!(v.pos[0] >= -1.0 && v.pos[0] <= 1.0);

@@ -167,9 +167,7 @@ impl BlockRegistry {
     pub fn get(&self, id: BlockId) -> &Block {
         // World-gen and meshing only ever produce ids we registered, so an
         // out-of-range id is a programming error; fall back to air defensively.
-        self.blocks
-            .get(id.index())
-            .unwrap_or(&self.blocks[0])
+        self.blocks.get(id.index()).unwrap_or(&self.blocks[0])
     }
 
     pub fn len(&self) -> usize {
@@ -236,7 +234,10 @@ impl BlockRegistry {
         // 9: pink flower
         r.register(Block {
             name: "flower_pink",
-            render: Cross { width: 0.5, height: 0.6 },
+            render: Cross {
+                width: 0.5,
+                height: 0.6,
+            },
             solid: false,
             color: Color::rgb(244, 162, 196),
             light_emission: 0,
@@ -245,7 +246,10 @@ impl BlockRegistry {
         // 10: blue flower
         r.register(Block {
             name: "flower_blue",
-            render: Cross { width: 0.5, height: 0.6 },
+            render: Cross {
+                width: 0.5,
+                height: 0.6,
+            },
             solid: false,
             color: Color::rgb(150, 180, 240),
             light_emission: 0,
@@ -265,7 +269,10 @@ impl BlockRegistry {
         // 13: mushroom — toadstool red
         r.register(Block {
             name: "mushroom",
-            render: Cross { width: 0.45, height: 0.4 },
+            render: Cross {
+                width: 0.45,
+                height: 0.4,
+            },
             solid: false,
             color: Color::rgb(214, 96, 96),
             light_emission: 2,
@@ -298,7 +305,10 @@ impl BlockRegistry {
         // 19: tall grass — wispy ground cover, non-solid
         r.register(Block {
             name: "tall_grass",
-            render: Cross { width: 0.85, height: 0.9 },
+            render: Cross {
+                width: 0.85,
+                height: 0.9,
+            },
             solid: false,
             color: Color::rgb(120, 196, 104),
             light_emission: 0,
@@ -307,7 +317,10 @@ impl BlockRegistry {
         // 20: berry bush — collectible snack, reddish-green
         r.register(Block {
             name: "berry_bush",
-            render: Cross { width: 0.8, height: 0.7 },
+            render: Cross {
+                width: 0.8,
+                height: 0.7,
+            },
             solid: false,
             color: Color::rgb(176, 96, 110),
             light_emission: 0,

@@ -89,7 +89,10 @@ pub fn save_to_bytes(game: &Game) -> Vec<u8> {
     let reg_len = game.manager.registry.len();
     w.u32(reg_len as u32);
     for id in 0..reg_len {
-        w.u32(game.inventory.count(pixelcraft_core::block::BlockId(id as u16)));
+        w.u32(
+            game.inventory
+                .count(pixelcraft_core::block::BlockId(id as u16)),
+        );
     }
 
     // Quest progress.

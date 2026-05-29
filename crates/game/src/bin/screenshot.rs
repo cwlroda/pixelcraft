@@ -134,7 +134,10 @@ fn main() {
         ) {
             renderer.update_highlight(Some(hit.block));
         }
-        let env = Environment { time_of_day: 0.12, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.12,
+            day_length: 600.0,
+        };
         let camera = Camera::new(eye, forward, aspect);
         let path = format!("{out_dir}/15_highlight.png");
         renderer.capture(&camera, &env, &path);
@@ -185,7 +188,9 @@ fn main() {
     }
 
     // If a cherry grove is near, frame its pink canopy with drifting petals.
-    if let Some(cherry) = nearest_block(&game, ground, pixelcraft_core::block::blocks::CHERRY_LEAVES) {
+    if let Some(cherry) =
+        nearest_block(&game, ground, pixelcraft_core::block::blocks::CHERRY_LEAVES)
+    {
         // Look down over the grove from above the canopy.
         let center = Vec3::new(cherry.x as f32, cherry.y as f32 - 4.0, cherry.z as f32);
         let eye = center + Vec3::new(16.0, 16.0, 16.0);
@@ -197,7 +202,10 @@ fn main() {
             game.particles.update(0.12);
         }
         renderer.update_particles(&game.particles);
-        let env = Environment { time_of_day: 0.14, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.14,
+            day_length: 600.0,
+        };
         let camera = Camera::new(eye, forward, aspect);
         let path = format!("{out_dir}/08_cherry.png");
         renderer.capture(&camera, &env, &path);
@@ -207,11 +215,15 @@ fn main() {
     }
 
     // If an autumn grove is near, frame its warm amber canopy.
-    if let Some(amber) = nearest_block(&game, ground, pixelcraft_core::block::blocks::AUTUMN_LEAVES) {
+    if let Some(amber) = nearest_block(&game, ground, pixelcraft_core::block::blocks::AUTUMN_LEAVES)
+    {
         let center = Vec3::new(amber.x as f32, amber.y as f32 - 3.0, amber.z as f32);
         let eye = center + Vec3::new(14.0, 13.0, 14.0);
         let forward = (center - eye).normalize();
-        let env = Environment { time_of_day: 0.42, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.42,
+            day_length: 600.0,
+        };
         let camera = Camera::new(eye, forward, aspect);
         let path = format!("{out_dir}/18_autumn.png");
         renderer.capture(&camera, &env, &path);
@@ -265,7 +277,10 @@ fn main() {
         let center = pos + Vec3::new(0.0, 0.5, 0.0);
         let eye = center + Vec3::new(1.8, 0.6, 1.8);
         let forward = (center - eye).normalize();
-        let env = Environment { time_of_day: 0.15, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.15,
+            day_length: 600.0,
+        };
         let camera = Camera::new(eye, forward, aspect);
         let hud = pixelcraft_game::render::HudState {
             inventory: &game.inventory,
@@ -314,7 +329,10 @@ fn main() {
         let center = Vec3::new(gx as f32 + 1.5, gy as f32 + 2.5, gz as f32);
         let eye = center + Vec3::new(4.0, 1.5, 5.0);
         let forward = (center - eye).normalize();
-        let env = Environment { time_of_day: 0.72, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.72,
+            day_length: 600.0,
+        };
         let camera = Camera::new(eye, forward, nrender.aspect());
         let path = format!("{out_dir}/10_lantern_night.png");
         nrender.capture(&camera, &env, &path);
@@ -332,7 +350,10 @@ fn main() {
         let right = Vec3::new(cy, 0.0, -sy);
         let eye = center + fwd * 2.4 + right * 1.6 + Vec3::new(0.0, 0.9, 0.0);
         let forward = (center - eye).normalize();
-        let env = Environment { time_of_day: 0.14, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.14,
+            day_length: 600.0,
+        };
         let camera = Camera::new(eye, forward, aspect);
         let hud = pixelcraft_game::render::HudState {
             inventory: &game.inventory,
@@ -361,7 +382,10 @@ fn main() {
         renderer.update_particles(&game.particles);
         let eye = ground + Vec3::new(0.0, 1.5, 0.0);
         let camera = Camera::new(eye, look_dir(0.6, -0.05), aspect);
-        let env = Environment { time_of_day: 0.28, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.28,
+            day_length: 600.0,
+        };
         let quest = game.quests.hud();
         let hud = pixelcraft_game::render::HudState {
             inventory: &game.inventory,
@@ -383,7 +407,10 @@ fn main() {
     {
         let eye = ground + Vec3::new(0.0, 1.5, 0.0);
         let camera = Camera::new(eye, look_dir(0.6, -0.1), aspect);
-        let env = Environment { time_of_day: 0.14, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.14,
+            day_length: 600.0,
+        };
         let rows: Vec<(String, bool)> = pixelcraft_game::crafting::recipes()
             .iter()
             .map(|r| (r.name.to_string(), r.affordable(&game.inventory)))
@@ -445,10 +472,17 @@ fn main() {
             crafting: None,
         };
         renderer.update_hud(&clean_hud);
-        let center = Vec3::new(crystal.x as f32 + 0.5, crystal.y as f32 + 0.5, crystal.z as f32 + 0.5);
+        let center = Vec3::new(
+            crystal.x as f32 + 0.5,
+            crystal.y as f32 + 0.5,
+            crystal.z as f32 + 0.5,
+        );
         let eye = center + Vec3::new(2.5, 1.2, 2.5);
         let forward = (center - eye).normalize();
-        let env = Environment { time_of_day: 0.25, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.25,
+            day_length: 600.0,
+        };
         let camera = Camera::new(eye, forward, aspect);
         let path = format!("{out_dir}/16_cave.png");
         renderer.capture(&camera, &env, &path);
@@ -482,7 +516,8 @@ fn main() {
             }
         }
         // A lantern hanging inside.
-        game.manager.set_block(BlockPos::new(bx + 3, by + 3, bz + 3), blocks::LANTERN);
+        game.manager
+            .set_block(BlockPos::new(bx + 3, by + 3, bz + 3), blocks::LANTERN);
         for _ in 0..10 {
             game.manager.update(ground);
         }
@@ -503,7 +538,10 @@ fn main() {
         let center = Vec3::new(bx as f32 + 3.5, by as f32 + 2.0, bz as f32 + 3.5);
         let eye = Vec3::new(bx as f32 + 1.4, by as f32 + 2.2, bz as f32 + 1.4);
         let forward = (center - eye).normalize();
-        let env = Environment { time_of_day: 0.72, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: 0.72,
+            day_length: 600.0,
+        };
         let camera = Camera::new(eye, forward, aspect);
         let path = format!("{out_dir}/17_room.png");
         renderer.capture(&camera, &env, &path);
@@ -540,7 +578,10 @@ fn make_timelapse(game: &Game, ground: Vec3, out_dir: &str) {
 
     for i in 0..FRAMES {
         let tod = i as f32 / FRAMES as f32;
-        let env = Environment { time_of_day: tod, day_length: 600.0 };
+        let env = Environment {
+            time_of_day: tod,
+            day_length: 600.0,
+        };
         clip.set_time(i as f32 * 0.35);
         let mut rgba = clip.capture_rgba(&camera, &env);
         let mut frame = gif::Frame::from_rgba_speed(W as u16, H as u16, &mut rgba, 10);

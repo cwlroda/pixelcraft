@@ -232,7 +232,14 @@ impl ChunkStorage {
             c += 8;
             data.push(u64::from_le_bytes(v.try_into().ok()?));
         }
-        Some((Self { palette, data, bits }, c))
+        Some((
+            Self {
+                palette,
+                data,
+                bits,
+            },
+            c,
+        ))
     }
 
     /// Drop the palette down to only blocks that are still referenced, and
@@ -425,7 +432,11 @@ mod tests {
             }
         }
         for i in 0..CHUNK_VOLUME {
-            let expect = if i % 2 == 0 { blocks::STONE } else { BlockId::AIR };
+            let expect = if i % 2 == 0 {
+                blocks::STONE
+            } else {
+                BlockId::AIR
+            };
             assert_eq!(c.get_index(i), expect);
         }
     }

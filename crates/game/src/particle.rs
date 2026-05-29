@@ -190,12 +190,60 @@ fn append_quad_cube(
 ) {
     let h = sy; // vertical half-extent (streak length for rain)
     let faces: [([f32; 3], [Vec3; 4]); 6] = [
-        ([1.0, 0.0, 0.0], [Vec3::new(s, -h, -s), Vec3::new(s, -h, s), Vec3::new(s, h, s), Vec3::new(s, h, -s)]),
-        ([-1.0, 0.0, 0.0], [Vec3::new(-s, -h, s), Vec3::new(-s, -h, -s), Vec3::new(-s, h, -s), Vec3::new(-s, h, s)]),
-        ([0.0, 1.0, 0.0], [Vec3::new(-s, h, -s), Vec3::new(s, h, -s), Vec3::new(s, h, s), Vec3::new(-s, h, s)]),
-        ([0.0, -1.0, 0.0], [Vec3::new(-s, -h, s), Vec3::new(s, -h, s), Vec3::new(s, -h, -s), Vec3::new(-s, -h, -s)]),
-        ([0.0, 0.0, 1.0], [Vec3::new(s, -h, s), Vec3::new(-s, -h, s), Vec3::new(-s, h, s), Vec3::new(s, h, s)]),
-        ([0.0, 0.0, -1.0], [Vec3::new(-s, -h, -s), Vec3::new(s, -h, -s), Vec3::new(s, h, -s), Vec3::new(-s, h, -s)]),
+        (
+            [1.0, 0.0, 0.0],
+            [
+                Vec3::new(s, -h, -s),
+                Vec3::new(s, -h, s),
+                Vec3::new(s, h, s),
+                Vec3::new(s, h, -s),
+            ],
+        ),
+        (
+            [-1.0, 0.0, 0.0],
+            [
+                Vec3::new(-s, -h, s),
+                Vec3::new(-s, -h, -s),
+                Vec3::new(-s, h, -s),
+                Vec3::new(-s, h, s),
+            ],
+        ),
+        (
+            [0.0, 1.0, 0.0],
+            [
+                Vec3::new(-s, h, -s),
+                Vec3::new(s, h, -s),
+                Vec3::new(s, h, s),
+                Vec3::new(-s, h, s),
+            ],
+        ),
+        (
+            [0.0, -1.0, 0.0],
+            [
+                Vec3::new(-s, -h, s),
+                Vec3::new(s, -h, s),
+                Vec3::new(s, -h, -s),
+                Vec3::new(-s, -h, -s),
+            ],
+        ),
+        (
+            [0.0, 0.0, 1.0],
+            [
+                Vec3::new(s, -h, s),
+                Vec3::new(-s, -h, s),
+                Vec3::new(-s, h, s),
+                Vec3::new(s, h, s),
+            ],
+        ),
+        (
+            [0.0, 0.0, -1.0],
+            [
+                Vec3::new(-s, -h, -s),
+                Vec3::new(s, -h, -s),
+                Vec3::new(s, h, -s),
+                Vec3::new(-s, h, -s),
+            ],
+        ),
     ];
     for (normal, corners) in faces {
         let base = verts.len() as u32;

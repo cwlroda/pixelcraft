@@ -172,7 +172,12 @@ impl EntityManager {
         }
     }
 
-    fn try_spawn(&mut self, player: Vec3, manager: &ChunkManager, is_night: bool) -> Option<Entity> {
+    fn try_spawn(
+        &mut self,
+        player: Vec3,
+        manager: &ChunkManager,
+        is_night: bool,
+    ) -> Option<Entity> {
         // Random point in the spawn ring around the player.
         let theta = self.rng.next_f32() * std::f32::consts::TAU;
         let r = self.config.spawn_min_radius
@@ -220,7 +225,11 @@ impl EntityManager {
         };
         let npc = if kind == EntityKind::Friend {
             let (name, lines) = FRIENDS[(self.rng.next_u64() as usize) % FRIENDS.len()];
-            Some(Npc { name, lines, line: 0 })
+            Some(Npc {
+                name,
+                lines,
+                line: 0,
+            })
         } else {
             None
         };
@@ -327,11 +336,7 @@ fn update_entity<Q: SolidQuery>(
 
             let (resolved, flags) = move_and_collide(e.aabb(), e.velocity * dt, solid);
             let (hw, _) = e.half_extents();
-            e.position = Vec3::new(
-                resolved.min.x + hw,
-                resolved.min.y,
-                resolved.min.z + hw,
-            );
+            e.position = Vec3::new(resolved.min.x + hw, resolved.min.y, resolved.min.z + hw);
             if flags.neg_y || flags.pos_y {
                 e.velocity.y = 0.0;
             }
@@ -346,17 +351,26 @@ fn update_entity<Q: SolidQuery>(
             // Gentle wandering orbit around `home`, with a bobbing vertical sine.
             if e.decision_timer <= 0.0 {
                 let theta = rng.next_f32() * std::f32::consts::TAU;
-                let reach = if e.kind == EntityKind::Firefly { 3.0 } else { 5.0 };
+                let reach = if e.kind == EntityKind::Firefly {
+                    3.0
+                } else {
+                    5.0
+                };
                 e.home += Vec3::new(theta.cos(), 0.0, theta.sin()) * reach * (rng.next_f32());
                 e.decision_timer = 1.0 + rng.next_f32() * 2.0;
                 // Keep the home anchored a sensible height above the terrain.
-                let surface = manager.surface_height(e.home.x.floor() as i32, e.home.z.floor() as i32);
+                let surface =
+                    manager.surface_height(e.home.x.floor() as i32, e.home.z.floor() as i32);
                 let min_y = surface as f32 + 2.0;
                 if e.home.y < min_y {
                     e.home.y = min_y;
                 }
             }
-            let speed = if e.kind == EntityKind::Firefly { 0.6 } else { 1.1 };
+            let speed = if e.kind == EntityKind::Firefly {
+                0.6
+            } else {
+                1.1
+            };
             let to_home = e.home - e.position;
             let bob = (e.phase * 2.0).sin() * 0.35;
             let drift = to_home * speed * dt;
@@ -381,17 +395,65 @@ fn append_box(
     // 6 faces: (normal, 4 corners CCW from outside).
     let faces: [([f32; 3], [Vec3; 4]); 6] = [
         // +X
-        ([1.0, 0.0, 0.0], [Vec3::new(max.x, min.y, min.z), Vec3::new(max.x, min.y, max.z), Vec3::new(max.x, max.y, max.z), Vec3::new(max.x, max.y, min.z)]),
+        (
+            [1.0, 0.0, 0.0],
+            [
+                Vec3::new(max.x, min.y, min.z),
+                Vec3::new(max.x, min.y, max.z),
+                Vec3::new(max.x, max.y, max.z),
+                Vec3::new(max.x, max.y, min.z),
+            ],
+        ),
         // -X
-        ([-1.0, 0.0, 0.0], [Vec3::new(min.x, min.y, max.z), Vec3::new(min.x, min.y, min.z), Vec3::new(min.x, max.y, min.z), Vec3::new(min.x, max.y, max.z)]),
+        (
+            [-1.0, 0.0, 0.0],
+            [
+                Vec3::new(min.x, min.y, max.z),
+                Vec3::new(min.x, min.y, min.z),
+                Vec3::new(min.x, max.y, min.z),
+                Vec3::new(min.x, max.y, max.z),
+            ],
+        ),
         // +Y (top)
-        ([0.0, 1.0, 0.0], [Vec3::new(min.x, max.y, min.z), Vec3::new(max.x, max.y, min.z), Vec3::new(max.x, max.y, max.z), Vec3::new(min.x, max.y, max.z)]),
+        (
+            [0.0, 1.0, 0.0],
+            [
+                Vec3::new(min.x, max.y, min.z),
+                Vec3::new(max.x, max.y, min.z),
+                Vec3::new(max.x, max.y, max.z),
+                Vec3::new(min.x, max.y, max.z),
+            ],
+        ),
         // -Y (bottom)
-        ([0.0, -1.0, 0.0], [Vec3::new(min.x, min.y, max.z), Vec3::new(max.x, min.y, max.z), Vec3::new(max.x, min.y, min.z), Vec3::new(min.x, min.y, min.z)]),
+        (
+            [0.0, -1.0, 0.0],
+            [
+                Vec3::new(min.x, min.y, max.z),
+                Vec3::new(max.x, min.y, max.z),
+                Vec3::new(max.x, min.y, min.z),
+                Vec3::new(min.x, min.y, min.z),
+            ],
+        ),
         // +Z
-        ([0.0, 0.0, 1.0], [Vec3::new(max.x, min.y, max.z), Vec3::new(min.x, min.y, max.z), Vec3::new(min.x, max.y, max.z), Vec3::new(max.x, max.y, max.z)]),
+        (
+            [0.0, 0.0, 1.0],
+            [
+                Vec3::new(max.x, min.y, max.z),
+                Vec3::new(min.x, min.y, max.z),
+                Vec3::new(min.x, max.y, max.z),
+                Vec3::new(max.x, max.y, max.z),
+            ],
+        ),
         // -Z
-        ([0.0, 0.0, -1.0], [Vec3::new(min.x, min.y, min.z), Vec3::new(max.x, min.y, min.z), Vec3::new(max.x, max.y, min.z), Vec3::new(min.x, max.y, min.z)]),
+        (
+            [0.0, 0.0, -1.0],
+            [
+                Vec3::new(min.x, min.y, min.z),
+                Vec3::new(max.x, min.y, min.z),
+                Vec3::new(max.x, max.y, min.z),
+                Vec3::new(min.x, max.y, min.z),
+            ],
+        ),
     ];
     for (normal, corners) in faces {
         let shade = match normal {
@@ -455,18 +517,54 @@ fn append_entity(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, e: &Entity, la
             let flap = (e.phase * 8.0).sin() * 0.12;
             let wing_col = Color::rgb(246, 188, 222);
             let body_col = Color::rgb(120, 96, 110);
-            append_box(verts, indices, p + Vec3::new(-0.04, 0.0, -0.04), p + Vec3::new(0.04, 0.16, 0.04), body_col, layer);
-            append_box(verts, indices, p + Vec3::new(-0.26, 0.05 + flap, -0.02), p + Vec3::new(-0.04, 0.2 + flap, 0.02), wing_col, layer);
-            append_box(verts, indices, p + Vec3::new(0.04, 0.05 + flap, -0.02), p + Vec3::new(0.26, 0.2 + flap, 0.02), wing_col, layer);
+            append_box(
+                verts,
+                indices,
+                p + Vec3::new(-0.04, 0.0, -0.04),
+                p + Vec3::new(0.04, 0.16, 0.04),
+                body_col,
+                layer,
+            );
+            append_box(
+                verts,
+                indices,
+                p + Vec3::new(-0.26, 0.05 + flap, -0.02),
+                p + Vec3::new(-0.04, 0.2 + flap, 0.02),
+                wing_col,
+                layer,
+            );
+            append_box(
+                verts,
+                indices,
+                p + Vec3::new(0.04, 0.05 + flap, -0.02),
+                p + Vec3::new(0.26, 0.2 + flap, 0.02),
+                wing_col,
+                layer,
+            );
         }
         EntityKind::Firefly => {
             // Tiny warm glowing mote (bright colour stands in for emission).
             let glow = Color::rgb(255, 244, 170);
-            append_box(verts, indices, p + Vec3::new(-0.09, 0.0, -0.09), p + Vec3::new(0.09, 0.18, 0.09), glow, layer);
+            append_box(
+                verts,
+                indices,
+                p + Vec3::new(-0.09, 0.0, -0.09),
+                p + Vec3::new(0.09, 0.18, 0.09),
+                glow,
+                layer,
+            );
         }
         EntityKind::Friend => {
             // A soft lilac-grey tabby.
-            append_cat(verts, indices, p, e.yaw, Color::rgb(176, 168, 196), Color::rgb(150, 142, 172), layer);
+            append_cat(
+                verts,
+                indices,
+                p,
+                e.yaw,
+                Color::rgb(176, 168, 196),
+                Color::rgb(150, 142, 172),
+                layer,
+            );
         }
     }
 }
@@ -486,25 +584,61 @@ pub fn append_cat(
     let fwd = Vec3::new(sy, 0.0, cy);
     let right = Vec3::new(cy, 0.0, -sy);
     // Body.
-    append_box(verts, indices, p + Vec3::new(-0.22, 0.0, -0.22), p + Vec3::new(0.22, 0.42, 0.22), fur, layer);
+    append_box(
+        verts,
+        indices,
+        p + Vec3::new(-0.22, 0.0, -0.22),
+        p + Vec3::new(0.22, 0.42, 0.22),
+        fur,
+        layer,
+    );
     // Head, forward and up.
     let head = p + Vec3::new(0.0, 0.42, 0.0) + fwd * 0.06;
-    append_box(verts, indices, head + Vec3::new(-0.18, 0.0, -0.18), head + Vec3::new(0.18, 0.34, 0.18), fur, layer);
+    append_box(
+        verts,
+        indices,
+        head + Vec3::new(-0.18, 0.0, -0.18),
+        head + Vec3::new(0.18, 0.34, 0.18),
+        fur,
+        layer,
+    );
     // Ears.
     for side in [-0.12f32, 0.12] {
         let base = head + Vec3::new(0.0, 0.34, 0.0) + right * side + fwd * 0.02;
-        append_box(verts, indices, base + Vec3::new(-0.06, 0.0, -0.06), base + Vec3::new(0.06, 0.12, 0.06), ear, layer);
+        append_box(
+            verts,
+            indices,
+            base + Vec3::new(-0.06, 0.0, -0.06),
+            base + Vec3::new(0.06, 0.12, 0.06),
+            ear,
+            layer,
+        );
     }
     // Curled tail at the back.
     let tail = p - fwd * 0.24 + Vec3::new(0.0, 0.1, 0.0);
-    append_box(verts, indices, tail + Vec3::new(-0.06, 0.0, -0.06), tail + Vec3::new(0.06, 0.3, 0.06), ear, layer);
+    append_box(
+        verts,
+        indices,
+        tail + Vec3::new(-0.06, 0.0, -0.06),
+        tail + Vec3::new(0.06, 0.3, 0.06),
+        ear,
+        layer,
+    );
 }
 
 /// Geometry for the player's own cat (a warm ginger tabby) at `pos`/`yaw`.
 pub fn player_cat_geometry(pos: Vec3, yaw: f32, layer: u32) -> (Vec<Vertex>, Vec<u32>) {
     let mut v = Vec::new();
     let mut i = Vec::new();
-    append_cat(&mut v, &mut i, pos, yaw, Color::rgb(236, 158, 92), Color::rgb(210, 130, 70), layer);
+    append_cat(
+        &mut v,
+        &mut i,
+        pos,
+        yaw,
+        Color::rgb(236, 158, 92),
+        Color::rgb(210, 130, 70),
+        layer,
+    );
     (v, i)
 }
 
@@ -539,7 +673,14 @@ mod tests {
     #[test]
     fn population_respects_cap() {
         let manager = settled(2024);
-        let mut em = EntityManager::new(1, EntityConfig { max_entities: 10, spawn_attempts_per_update: 8, ..Default::default() });
+        let mut em = EntityManager::new(
+            1,
+            EntityConfig {
+                max_entities: 10,
+                spawn_attempts_per_update: 8,
+                ..Default::default()
+            },
+        );
         for _ in 0..50 {
             em.update(1.0 / 30.0, Vec3::new(8.0, 64.0, 8.0), &manager, 1.0);
         }
@@ -557,7 +698,8 @@ mod tests {
         }
         for e in &em.entities {
             if e.kind == EntityKind::Critter {
-                let surface = manager.surface_height(e.position.x.floor() as i32, e.position.z.floor() as i32);
+                let surface = manager
+                    .surface_height(e.position.x.floor() as i32, e.position.z.floor() as i32);
                 // Allow a little slack but critters must not sink far underground.
                 assert!(
                     e.position.y > surface as f32 - 2.0,
@@ -629,7 +771,13 @@ mod tests {
     #[test]
     fn geometry_is_nonempty_with_entities() {
         let manager = settled(2024);
-        let mut em = EntityManager::new(1, EntityConfig { spawn_attempts_per_update: 8, ..Default::default() });
+        let mut em = EntityManager::new(
+            1,
+            EntityConfig {
+                spawn_attempts_per_update: 8,
+                ..Default::default()
+            },
+        );
         for _ in 0..20 {
             em.update(1.0 / 30.0, Vec3::new(8.0, 64.0, 8.0), &manager, 1.0);
         }

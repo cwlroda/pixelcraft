@@ -87,9 +87,7 @@ impl WorldGenerator {
             .height_noise
             .fbm2(fx * 0.0021, fz * 0.0021, 5, 2.0, 0.5);
         // Hill detail at higher frequency, gentler amplitude.
-        let detail = self
-            .detail_noise
-            .fbm2(fx * 0.012, fz * 0.012, 4, 2.1, 0.45);
+        let detail = self.detail_noise.fbm2(fx * 0.012, fz * 0.012, 4, 2.1, 0.45);
 
         let temperature = self
             .temperature_noise
@@ -159,10 +157,7 @@ impl WorldGenerator {
                     let wy = chunk_min_y + ly;
                     let block = self.terrain_block(wx, wy, wz, surface, &profile);
                     if !block.is_air() {
-                        storage.set(
-                            LocalPos::new(lx as u8, ly as u8, lz as u8),
-                            block,
-                        );
+                        storage.set(LocalPos::new(lx as u8, ly as u8, lz as u8), block);
                     }
                 }
             }
@@ -218,11 +213,9 @@ impl WorldGenerator {
         // Deep stone: scatter ores with 3D noise. Glowing crystals hide in the
         // depths (rare, a cosy reward for spelunking); coal is commoner higher.
         if wy < 26 {
-            let c = self.ore_noise.noise3(
-                wx as f32 * 0.11,
-                wy as f32 * 0.11,
-                wz as f32 * 0.11,
-            );
+            let c = self
+                .ore_noise
+                .noise3(wx as f32 * 0.11, wy as f32 * 0.11, wz as f32 * 0.11);
             if c > 0.78 {
                 return blocks::CRYSTAL;
             }
@@ -285,7 +278,15 @@ impl WorldGenerator {
                     if dx * dx + (dy * dy) * 2 + dz * dz > r * r + 1 {
                         continue;
                     }
-                    self.stamp(storage, origin, wx + dx, surface + dy, wz + dz, blocks::COBBLE, true);
+                    self.stamp(
+                        storage,
+                        origin,
+                        wx + dx,
+                        surface + dy,
+                        wz + dz,
+                        blocks::COBBLE,
+                        true,
+                    );
                 }
             }
         }
@@ -304,8 +305,7 @@ impl WorldGenerator {
 
         for rz in rz0..=rz1 {
             for rx in rx0..=rx1 {
-                let mut rng =
-                    SplitMix64::new(hash_coords(self.seed ^ 0x057A_B1E5, rx, rz));
+                let mut rng = SplitMix64::new(hash_coords(self.seed ^ 0x057A_B1E5, rx, rz));
                 // Not every region has a cottage.
                 if rng.next_f32() > 0.55 {
                     continue;
@@ -353,14 +353,30 @@ impl WorldGenerator {
         for dz in -1..=5 {
             for dx in -1..=5 {
                 for dy in 1..=10 {
-                    self.stamp(storage, origin, bx + dx, floor_y + dy, bz + dz, BlockId::AIR, true);
+                    self.stamp(
+                        storage,
+                        origin,
+                        bx + dx,
+                        floor_y + dy,
+                        bz + dz,
+                        BlockId::AIR,
+                        true,
+                    );
                 }
             }
         }
         // Floor.
         for dz in 0..5 {
             for dx in 0..5 {
-                self.stamp(storage, origin, bx + dx, floor_y, bz + dz, blocks::COBBLE, true);
+                self.stamp(
+                    storage,
+                    origin,
+                    bx + dx,
+                    floor_y,
+                    bz + dz,
+                    blocks::COBBLE,
+                    true,
+                );
             }
         }
         // Walls (perimeter), 3 high.
@@ -377,8 +393,7 @@ impl WorldGenerator {
                     }
                     // Windows: mid-height centre of each wall.
                     let window = dy == 2
-                        && ((dx == 2 && (dz == 0 || dz == 4))
-                            || (dz == 2 && (dx == 0 || dx == 4)));
+                        && ((dx == 2 && (dz == 0 || dz == 4)) || (dz == 2 && (dx == 0 || dx == 4)));
                     let block = if window { blocks::GLASS } else { blocks::PLANK };
                     self.stamp(storage, origin, bx + dx, floor_y + dy, bz + dz, block, true);
                 }
@@ -387,16 +402,40 @@ impl WorldGenerator {
         // Roof: full 5×5 cap, then a smaller 3×3 peak.
         for dz in 0..5 {
             for dx in 0..5 {
-                self.stamp(storage, origin, bx + dx, floor_y + 4, bz + dz, blocks::ROOF, true);
+                self.stamp(
+                    storage,
+                    origin,
+                    bx + dx,
+                    floor_y + 4,
+                    bz + dz,
+                    blocks::ROOF,
+                    true,
+                );
             }
         }
         for dz in 1..4 {
             for dx in 1..4 {
-                self.stamp(storage, origin, bx + dx, floor_y + 5, bz + dz, blocks::ROOF, true);
+                self.stamp(
+                    storage,
+                    origin,
+                    bx + dx,
+                    floor_y + 5,
+                    bz + dz,
+                    blocks::ROOF,
+                    true,
+                );
             }
         }
         // A warm lantern glowing inside on the floor.
-        self.stamp(storage, origin, bx + 2, floor_y + 1, bz + 2, blocks::LANTERN, true);
+        self.stamp(
+            storage,
+            origin,
+            bx + 2,
+            floor_y + 1,
+            bz + 2,
+            blocks::LANTERN,
+            true,
+        );
     }
 
     /// Stamp a tree whose species/shape suits the biome. Only blocks inside the
@@ -499,7 +538,15 @@ impl WorldGenerator {
                     if dx * dx + dz * dz > layer_r * layer_r + 1 {
                         continue;
                     }
-                    self.stamp(storage, origin, wx + dx, y, wz + dz, blocks::PINE_LEAVES, false);
+                    self.stamp(
+                        storage,
+                        origin,
+                        wx + dx,
+                        y,
+                        wz + dz,
+                        blocks::PINE_LEAVES,
+                        false,
+                    );
                 }
             }
             y += 1;
@@ -587,8 +634,8 @@ impl WorldGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pixelcraft_core::block::RenderKind;
     use pixelcraft_core::block::BlockRegistry;
+    use pixelcraft_core::block::RenderKind;
 
     #[test]
     fn generation_is_deterministic() {
@@ -676,7 +723,10 @@ mod tests {
                 }
             }
         }
-        assert!(roof > 0, "no cottage roofs generated across the sampled area");
+        assert!(
+            roof > 0,
+            "no cottage roofs generated across the sampled area"
+        );
         assert!(lantern > 0, "no cottage lanterns generated");
     }
 

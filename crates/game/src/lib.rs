@@ -230,9 +230,12 @@ impl Game {
                 let before = self.fireflies_caught;
                 self.fireflies_caught += caught;
                 if self.fireflies_caught / 10 > before / 10 {
-                    self.inventory.add(pixelcraft_core::block::blocks::LANTERN, 2);
-                    self.active_dialogue =
-                        Some(("FIREFLIES".to_string(), "A JAR FULL! +2 LANTERNS".to_string()));
+                    self.inventory
+                        .add(pixelcraft_core::block::blocks::LANTERN, 2);
+                    self.active_dialogue = Some((
+                        "FIREFLIES".to_string(),
+                        "A JAR FULL! +2 LANTERNS".to_string(),
+                    ));
                     self.dialogue_timer = 4.0;
                 }
             }
