@@ -78,7 +78,18 @@ fn fs_main(in : VsOut) -> @location(0) vec4<f32> {
     let ambient = globals.sun_color.a;
     let diffuse = max(dot(n, sun), 0.0);
     let light = ambient + (1.0 - ambient) * diffuse;
-    var lit = albedo * light * globals.sun_color.rgb;
+
+    // Emissive blocks (lanterns, crystals, mushrooms) self-illuminate so they
+    // glow warmly at night instead of dimming with the ambient.
+    var emissive = 0.0;
+    if (in.layer == 12u) { emissive = 1.0; }       // lantern
+    else if (in.layer == 18u) { emissive = 0.85; } // crystal
+    else if (in.layer == 13u) { emissive = 0.3; }  // mushroom
+
+    let surface_light = max(light, emissive);
+    var lit = albedo * surface_light * globals.sun_color.rgb;
+    // A little extra bloom of the block's own colour for emitters.
+    lit += albedo * emissive * 0.6;
 
     // Gentle hemispherical sky bounce on upward faces for extra warmth.
     let sky_bounce = clamp(n.y * 0.5 + 0.5, 0.0, 1.0) * 0.08;

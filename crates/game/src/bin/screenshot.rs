@@ -200,6 +200,42 @@ fn main() {
         println!("  wrote {path}");
     }
 
+    // A cosy night scene with glowing lanterns: stack a little lantern post
+    // near the cat and shoot it under the stars.
+    {
+        use pixelcraft_core::block::{blocks, BlockId};
+        use pixelcraft_core::coords::BlockPos;
+        let gx = ground.x.floor() as i32 + 3;
+        let gz = ground.z.floor() as i32;
+        let gy = game.manager.surface_height(gx, gz);
+        // Two lantern posts on plank pillars.
+        for &dx in &[0, 3] {
+            for h in 1..=2 {
+                game.manager
+                    .set_block(BlockPos::new(gx + dx, gy + h, gz), blocks::PLANK);
+            }
+            game.manager
+                .set_block(BlockPos::new(gx + dx, gy + 3, gz), blocks::LANTERN);
+        }
+        let _ = BlockId::AIR;
+        for _ in 0..6 {
+            game.manager.update(ground);
+        }
+        let mut nrender = Headless::new(WIDTH, HEIGHT);
+        nrender.set_render_distance(render_distance);
+        nrender.set_time(game.time);
+        nrender.sync_meshes(&game.manager);
+        nrender.update_entities(&game.entities);
+        let center = Vec3::new(gx as f32 + 1.5, gy as f32 + 2.5, gz as f32);
+        let eye = center + Vec3::new(4.0, 1.5, 5.0);
+        let forward = (center - eye).normalize();
+        let env = Environment { time_of_day: 0.72, day_length: 600.0 };
+        let camera = Camera::new(eye, forward, nrender.aspect());
+        let path = format!("{out_dir}/10_lantern_night.png");
+        nrender.capture(&camera, &env, &path);
+        println!("  wrote {path}");
+    }
+
     // A day→night→day timelapse GIF over the valley.
     make_timelapse(&game, ground, &out_dir);
 
