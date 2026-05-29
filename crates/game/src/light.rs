@@ -9,6 +9,7 @@
 //! combined with the live daylight in the shader, so lanterns glow at night
 //! while open ground tracks the sun — without re-meshing.
 
+use pixelcraft_core::block::{BlockId, BlockRegistry};
 use pixelcraft_core::coords::{BlockPos, CHUNK_SIZE};
 use pixelcraft_mesh::ChunkLight;
 use std::collections::VecDeque;
@@ -25,19 +26,20 @@ fn ridx(x: i32, y: i32, z: i32) -> usize {
 }
 
 /// Bake the light for the chunk whose origin (world coords of its `(0,0,0)`) is
-/// `origin`. `opaque` reports light-blocking blocks; `emission` reports a
-/// block's emitted light level (0 = none).
+/// `origin`. `block_at` reports the block id at a world position; the registry
+/// supplies its opacity and emission. Sampling each cell once (rather than once
+/// per property) keeps the world lookups — the dominant cost — to a minimum.
 pub fn bake(
     origin: BlockPos,
-    opaque: impl Fn(BlockPos) -> bool,
-    emission: impl Fn(BlockPos) -> u8,
+    block_at: impl Fn(BlockPos) -> BlockId,
+    registry: &BlockRegistry,
 ) -> ChunkLight {
     let vol = (R * R * R) as usize;
     let mut solid = vec![false; vol];
     let mut sky = vec![0u8; vol];
     let mut block = vec![0u8; vol];
 
-    // Sample the padded region's blocks once.
+    // Sample the padded region's blocks once each.
     let mut queue_sky: VecDeque<usize> = VecDeque::new();
     let mut queue_block: VecDeque<usize> = VecDeque::new();
     for rz in 0..R {
@@ -45,12 +47,12 @@ pub fn bake(
             for rx in 0..R {
                 let wp = BlockPos::new(origin.x - M + rx, origin.y - M + ry, origin.z - M + rz);
                 let i = ridx(rx, ry, rz);
-                if opaque(wp) {
+                let def = registry.get(block_at(wp));
+                if def.occludes() {
                     solid[i] = true;
                 }
-                let e = emission(wp);
-                if e > 0 {
-                    block[i] = e;
+                if def.light_emission > 0 {
+                    block[i] = def.light_emission;
                     queue_block.push_back(i);
                 }
             }
@@ -136,12 +138,7 @@ mod tests {
     use pixelcraft_core::world::World;
 
     fn world_light(world: &World, reg: &BlockRegistry, pos: ChunkPos) -> ChunkLight {
-        let origin = pos.origin();
-        bake(
-            origin,
-            |bp| reg.get(world.block_at(bp)).occludes(),
-            |bp| reg.get(world.block_at(bp)).light_emission,
-        )
+        bake(pos.origin(), |bp| world.block_at(bp), reg)
     }
 
     #[test]

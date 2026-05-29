@@ -369,11 +369,7 @@ impl ChunkManager {
         let mesh_one = |pos: ChunkPos| -> Option<(ChunkPos, ChunkMesh)> {
             let sampler = ChunkNeighborSampler::new(world, pos)?;
             // Bake lighting for this chunk from the surrounding world.
-            let light = crate::light::bake(
-                pos.origin(),
-                |bp| registry.get(world.block_at(bp)).occludes(),
-                |bp| registry.get(world.block_at(bp)).light_emission,
-            );
+            let light = crate::light::bake(pos.origin(), |bp| world.block_at(bp), registry);
             Some((pos, mesh_chunk_lit(&sampler, registry, &light)))
         };
 
