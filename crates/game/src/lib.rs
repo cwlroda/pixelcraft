@@ -120,6 +120,13 @@ impl Game {
         crafting::craft(&mut self.inventory, index)
     }
 
+    /// The block the cat is currently looking at (for the selection highlight).
+    pub fn target_block(&self) -> Option<pixelcraft_core::coords::BlockPos> {
+        let eye = self.player.eye();
+        let look = self.player.look_dir();
+        interaction::target(&self.manager, eye, look).map(|h| h.block)
+    }
+
     /// Talk to the friendly cat the player is looking at, if any.
     pub fn talk(&mut self) {
         let eye = self.player.eye();

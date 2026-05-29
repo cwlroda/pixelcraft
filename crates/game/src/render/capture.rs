@@ -109,6 +109,16 @@ impl Headless {
         self.scene.upload_particles(&v, &i);
     }
 
+    pub fn update_highlight(&mut self, block: Option<pixelcraft_core::coords::BlockPos>) {
+        match block {
+            Some(p) => {
+                let (v, i) = super::scene::highlight_geometry(p.x, p.y, p.z, self.scene.white_layer());
+                self.scene.upload_highlight(&v, &i);
+            }
+            None => self.scene.upload_highlight(&[], &[]),
+        }
+    }
+
     pub fn update_player_model(&mut self, model: Option<(glam::Vec3, f32)>) {
         match model {
             Some((pos, yaw)) => {

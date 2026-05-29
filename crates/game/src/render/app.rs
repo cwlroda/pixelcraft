@@ -300,6 +300,13 @@ impl State {
         self.renderer.sync_meshes(&self.game.manager);
         self.renderer.update_entities(&self.game.entities);
         self.renderer.update_particles(&self.game.particles);
+        // Highlight the block under the crosshair (hidden while crafting).
+        let target = if self.game.crafting_open {
+            None
+        } else {
+            self.game.target_block()
+        };
+        self.renderer.update_highlight(target);
         let quest = self.game.quests.hud();
         let hud = super::HudState {
             inventory: &self.game.inventory,

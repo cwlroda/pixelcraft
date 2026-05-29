@@ -65,6 +65,8 @@ pub struct GpuScene {
     particles: Option<GpuLayer>,
     /// The player's own cat model (third-person view only).
     player_model: Option<GpuLayer>,
+    /// Wireframe highlight on the targeted block.
+    highlight: Option<GpuLayer>,
     ui_pipeline: wgpu::RenderPipeline,
     ui_buffer: Option<(wgpu::Buffer, u32)>,
     /// Index of the solid-white atlas tile, used by untextured geometry.
@@ -213,8 +215,14 @@ impl GpuScene {
             entities: None,
             particles: None,
             player_model: None,
+            highlight: None,
             render_distance: 16.0 * CHUNK_EDGE,
         }
+    }
+
+    /// Set (or clear) the targeted-block wireframe highlight.
+    pub fn upload_highlight(&mut self, verts: &[Vertex], indices: &[u32]) {
+        self.highlight = self.upload_layer(verts, indices, Vec3::ZERO);
     }
 
     /// Replace the per-frame particle geometry (drawn transparent).
@@ -429,7 +437,10 @@ impl GpuScene {
             }
         }
 
-        // Particles (petals, debris) blend over the world.
+        // Targeted-block highlight + particles blend over the world.
+        if let Some(layer) = &self.highlight {
+            draw_layer(&mut pass, layer);
+        }
         if let Some(layer) = &self.particles {
             draw_layer(&mut pass, layer);
         }
@@ -674,6 +685,74 @@ fn make_ui_pipeline(
         multiview: None,
         cache: None,
     })
+}
+
+/// Build a thin wireframe outline (12 edge bars) around the unit block at
+/// `(bx,by,bz)`, slightly inflated so it floats just off the surface.
+pub fn highlight_geometry(bx: i32, by: i32, bz: i32, layer: u32) -> (Vec<Vertex>, Vec<u32>) {
+    let mut verts = Vec::new();
+    let mut indices = Vec::new();
+    let lo = -0.006;
+    let hi = 1.006;
+    let t = 0.03; // edge thickness
+    let o = Vec3::new(bx as f32, by as f32, bz as f32);
+    let color = [0.05, 0.05, 0.06, 0.85];
+    // For each of the 3 axes, draw the 4 edges parallel to it.
+    let mut bar = |a: Vec3, b: Vec3| push_box(&mut verts, &mut indices, o + a, o + b, color, layer, t);
+    // Edges along X.
+    for &y in &[lo, hi] {
+        for &z in &[lo, hi] {
+            bar(Vec3::new(lo, y, z), Vec3::new(hi, y, z));
+        }
+    }
+    // Edges along Y.
+    for &x in &[lo, hi] {
+        for &z in &[lo, hi] {
+            bar(Vec3::new(x, lo, z), Vec3::new(x, hi, z));
+        }
+    }
+    // Edges along Z.
+    for &x in &[lo, hi] {
+        for &y in &[lo, hi] {
+            bar(Vec3::new(x, y, lo), Vec3::new(x, y, hi));
+        }
+    }
+    (verts, indices)
+}
+
+/// Push a thin box spanning from `a` to `b` (a cuboid edge bar of thickness `t`).
+fn push_box(
+    verts: &mut Vec<Vertex>,
+    indices: &mut Vec<u32>,
+    a: Vec3,
+    b: Vec3,
+    color: [f32; 4],
+    layer: u32,
+    t: f32,
+) {
+    let min = a.min(b) - Vec3::splat(t * 0.5);
+    let max = a.max(b) + Vec3::splat(t * 0.5);
+    let corners = [
+        [min.x, min.y, min.z], [max.x, min.y, min.z], [max.x, max.y, min.z], [min.x, max.y, min.z],
+        [min.x, min.y, max.z], [max.x, min.y, max.z], [max.x, max.y, max.z], [min.x, max.y, max.z],
+    ];
+    // 6 faces as index quads into the 8 corners.
+    let faces = [
+        [0u32, 1, 2, 3], [5, 4, 7, 6], [4, 0, 3, 7], [1, 5, 6, 2], [3, 2, 6, 7], [4, 5, 1, 0],
+    ];
+    for f in faces {
+        let base = verts.len() as u32;
+        for &ci in &f {
+            verts.push(Vertex {
+                position: corners[ci as usize],
+                normal: [0.0, 1.0, 0.0],
+                color,
+                uv: [0.0, 0.0],
+                layer,
+            });
+        }
+        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
 }
 
 /// Request an adapter + device. `compatible_surface` is `Some` for the windowed

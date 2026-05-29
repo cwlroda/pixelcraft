@@ -121,6 +121,27 @@ fn main() {
         println!("  wrote {path}");
     }
 
+    // A close-up showing the block-selection highlight under the crosshair.
+    {
+        let eye = ground + Vec3::new(0.0, 1.5, 0.0);
+        let forward = look_dir(0.6, -0.45); // look down at the ground nearby
+        if let Some(hit) = pixelcraft_game::cast(
+            &game.manager.world,
+            &game.manager.registry,
+            eye,
+            forward,
+            6.0,
+        ) {
+            renderer.update_highlight(Some(hit.block));
+        }
+        let env = Environment { time_of_day: 0.12, day_length: 600.0 };
+        let camera = Camera::new(eye, forward, aspect);
+        let path = format!("{out_dir}/15_highlight.png");
+        renderer.capture(&camera, &env, &path);
+        renderer.update_highlight(None);
+        println!("  wrote {path}");
+    }
+
     // If a cottage generated nearby, frame it for a close-up.
     if let Some(cottage) = nearest_block(&game, ground, pixelcraft_core::block::blocks::ROOF) {
         // Clear the trees immediately around the house so the architecture is
