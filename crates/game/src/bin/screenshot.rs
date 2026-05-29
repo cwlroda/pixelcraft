@@ -206,6 +206,20 @@ fn main() {
         println!("  (no cherry grove near spawn this run)");
     }
 
+    // If an autumn grove is near, frame its warm amber canopy.
+    if let Some(amber) = nearest_block(&game, ground, pixelcraft_core::block::blocks::AUTUMN_LEAVES) {
+        let center = Vec3::new(amber.x as f32, amber.y as f32 - 3.0, amber.z as f32);
+        let eye = center + Vec3::new(14.0, 13.0, 14.0);
+        let forward = (center - eye).normalize();
+        let env = Environment { time_of_day: 0.42, day_length: 600.0 };
+        let camera = Camera::new(eye, forward, aspect);
+        let path = format!("{out_dir}/18_autumn.png");
+        renderer.capture(&camera, &env, &path);
+        println!("  wrote {path} (autumn at {amber:?})");
+    } else {
+        println!("  (no autumn grove near spawn this run)");
+    }
+
     // A critter close-up: frame the nearest ground critter to the cat.
     if let Some(critter) = game
         .entities

@@ -142,6 +142,7 @@ pub mod blocks {
     pub const COAL_ORE: BlockId = BlockId(22);
     pub const CHERRY_LEAVES: BlockId = BlockId(23);
     pub const PINE_LEAVES: BlockId = BlockId(24);
+    pub const AUTUMN_LEAVES: BlockId = BlockId(25);
 }
 
 /// Registry mapping [`BlockId`] to [`Block`] definitions.
@@ -331,6 +332,15 @@ impl BlockRegistry {
             render: TransparentCube,
             solid: true,
             color: Color::rgba(70, 124, 86, 238),
+            light_emission: 0,
+            harvestable: true,
+        });
+        // 25: autumn leaves — warm amber canopy
+        r.register(Block {
+            name: "autumn_leaves",
+            render: TransparentCube,
+            solid: true,
+            color: Color::rgba(224, 142, 66, 236),
             light_emission: 0,
             harvestable: true,
         });

@@ -389,7 +389,19 @@ impl WorldGenerator {
             Biome::CherryGrove => {
                 self.place_blob_tree(storage, origin, wx, wz, surface, blocks::CHERRY_LEAVES, rng)
             }
-            _ => self.place_blob_tree(storage, origin, wx, wz, surface, blocks::LEAVES, rng),
+            _ => {
+                // Large-scale noise paints warm autumn patches across the woods.
+                let autumn = self
+                    .temperature_noise
+                    .noise2(wx as f32 * 0.004, wz as f32 * 0.004)
+                    > 0.28;
+                let leaf = if autumn {
+                    blocks::AUTUMN_LEAVES
+                } else {
+                    blocks::LEAVES
+                };
+                self.place_blob_tree(storage, origin, wx, wz, surface, leaf, rng)
+            }
         }
     }
 
