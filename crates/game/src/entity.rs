@@ -238,6 +238,16 @@ impl EntityManager {
         })
     }
 
+    /// Remove all entities of `kind` within `radius` of `pos`, returning how
+    /// many were collected (used for the firefly-catching minigame).
+    pub fn collect_near(&mut self, pos: Vec3, radius: f32, kind: EntityKind) -> u32 {
+        let r2 = radius * radius;
+        let before = self.entities.len();
+        self.entities
+            .retain(|e| !(e.kind == kind && e.position.distance_squared(pos) <= r2));
+        (before - self.entities.len()) as u32
+    }
+
     /// Find the friendly cat the player is looking at (within reach) and return
     /// its current dialogue line, advancing to the next line for the next chat.
     pub fn talk_to(&mut self, eye: Vec3, look: Vec3) -> Option<(String, String)> {
@@ -570,6 +580,47 @@ mod tests {
         for e in &em.entities {
             assert!(e.position.distance(far) <= em.config.despawn_radius + 1.0);
         }
+    }
+
+    #[test]
+    fn collect_near_removes_matching_in_radius() {
+        let manager = settled(2024);
+        let mut em = EntityManager::new(9, EntityConfig::default());
+        // Hand-place a few fireflies and a critter near the origin.
+        let here = Vec3::new(0.0, 64.0, 0.0);
+        for _ in 0..3 {
+            em.entities.push(Entity {
+                kind: EntityKind::Firefly,
+                position: here,
+                velocity: Vec3::ZERO,
+                yaw: 0.0,
+                on_ground: false,
+                decision_timer: 0.0,
+                heading: Vec3::X,
+                phase: 0.0,
+                home: here,
+                npc: None,
+            });
+        }
+        let _ = &manager;
+        let before = em.count();
+        let caught = em.collect_near(here, 1.5, EntityKind::Firefly);
+        assert_eq!(caught, 3);
+        assert_eq!(em.count(), before - 3);
+        // A firefly far away is untouched.
+        em.entities.push(Entity {
+            kind: EntityKind::Firefly,
+            position: Vec3::new(100.0, 64.0, 0.0),
+            velocity: Vec3::ZERO,
+            yaw: 0.0,
+            on_ground: false,
+            decision_timer: 0.0,
+            heading: Vec3::X,
+            phase: 0.0,
+            home: here,
+            npc: None,
+        });
+        assert_eq!(em.collect_near(here, 1.5, EntityKind::Firefly), 0);
     }
 
     #[test]

@@ -311,7 +311,14 @@ impl State {
                 .or_else(|| Some("ALL QUESTS DONE - ENJOY!".to_string())),
             objective_progress: quest.as_ref().map(|(_, p)| *p),
             dialogue: self.game.active_dialogue.clone(),
-            weather: Some(self.game.weather.label().to_string()),
+            weather: Some({
+                let mut w = self.game.weather.label().to_string();
+                // Show the firefly tally during the night festival.
+                if self.game.environment.daylight() < 0.35 && self.game.fireflies_caught > 0 {
+                    w.push_str(&format!("  FIREFLIES {}", self.game.fireflies_caught));
+                }
+                w
+            }),
             crafting: self.game.crafting_open.then(|| {
                 crate::crafting::recipes()
                     .iter()

@@ -83,6 +83,8 @@ pub struct Game {
     dialogue_timer: f32,
     /// Whether the crafting menu is open.
     pub crafting_open: bool,
+    /// Fireflies caught in the nighttime catching minigame.
+    pub fireflies_caught: u32,
     /// Seconds of accumulated simulation time.
     pub time: f32,
 }
@@ -108,6 +110,7 @@ impl Game {
             active_dialogue: None,
             dialogue_timer: 0.0,
             crafting_open: false,
+            fireflies_caught: 0,
             time: 0.0,
         }
     }
@@ -200,6 +203,32 @@ impl Game {
             self.particles.emit_petals(self.player.position, dt);
         }
         self.particles.update(dt);
+
+        // Firefly festival: at night, walking into fireflies catches them. Every
+        // ten caught, the cat is rewarded with a couple of lanterns.
+        if self.environment.daylight() < 0.35 {
+            let caught = self.entities.collect_near(
+                self.player.position + Vec3::new(0.0, 0.4, 0.0),
+                1.7,
+                entity::EntityKind::Firefly,
+            );
+            if caught > 0 {
+                // A little sparkle where they were caught.
+                self.particles.burst(
+                    self.player.eye(),
+                    pixelcraft_core::block::Color::rgb(255, 244, 170),
+                    caught * 3,
+                );
+                let before = self.fireflies_caught;
+                self.fireflies_caught += caught;
+                if self.fireflies_caught / 10 > before / 10 {
+                    self.inventory.add(pixelcraft_core::block::blocks::LANTERN, 2);
+                    self.active_dialogue =
+                        Some(("FIREFLIES".to_string(), "A JAR FULL! +2 LANTERNS".to_string()));
+                    self.dialogue_timer = 4.0;
+                }
+            }
+        }
 
         // Fade out any active dialogue.
         if self.dialogue_timer > 0.0 {
