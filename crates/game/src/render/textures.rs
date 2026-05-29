@@ -93,7 +93,7 @@ fn generate(name: &str, base: Color, idx: u64) -> Canvas {
                 }
             }
         }
-        "leaves" => {
+        "leaves" | "cherry_leaves" | "pine_leaves" => {
             for y in 0..TILE {
                 for x in 0..TILE {
                     let n = noise(x, y);

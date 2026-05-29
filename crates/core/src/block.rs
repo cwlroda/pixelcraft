@@ -140,6 +140,8 @@ pub mod blocks {
     pub const BERRY_BUSH: BlockId = BlockId(20);
     pub const ROOF: BlockId = BlockId(21);
     pub const COAL_ORE: BlockId = BlockId(22);
+    pub const CHERRY_LEAVES: BlockId = BlockId(23);
+    pub const PINE_LEAVES: BlockId = BlockId(24);
 }
 
 /// Registry mapping [`BlockId`] to [`Block`] definitions.
@@ -314,6 +316,24 @@ impl BlockRegistry {
         r.register(opaque("roof", Color::rgb(196, 104, 86), true));
         // 22: coal ore — speckled dark stone
         r.register(opaque("coal_ore", Color::rgb(78, 80, 86), true));
+        // 23: cherry blossom leaves — soft pink canopy
+        r.register(Block {
+            name: "cherry_leaves",
+            render: TransparentCube,
+            solid: true,
+            color: Color::rgba(244, 178, 212, 236),
+            light_emission: 0,
+            harvestable: true,
+        });
+        // 24: pine needles — deep evergreen
+        r.register(Block {
+            name: "pine_leaves",
+            render: TransparentCube,
+            solid: true,
+            color: Color::rgba(70, 124, 86, 238),
+            light_emission: 0,
+            harvestable: true,
+        });
 
         r
     }

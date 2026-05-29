@@ -19,6 +19,8 @@ pub enum Biome {
     SnowyPeaks,
     /// Warm sandy dunes with the occasional pumpkin patch.
     Dunes,
+    /// A gentle grove of pink cherry-blossom trees.
+    CherryGrove,
 }
 
 /// Surface and shaping parameters derived from a biome.
@@ -48,6 +50,10 @@ impl Biome {
         }
         if temperature > 0.45 && humidity < -0.1 {
             return Biome::Dunes;
+        }
+        // Mild, gently humid uplands bloom into cherry groves.
+        if temperature > 0.1 && temperature < 0.5 && humidity > 0.0 && humidity < 0.3 {
+            return Biome::CherryGrove;
         }
         if humidity > 0.15 {
             return Biome::Forest;
@@ -97,6 +103,14 @@ impl Biome {
                 tree_density: 0.0,
                 flora_density: 0.012,
             },
+            Biome::CherryGrove => BiomeProfile {
+                surface: blocks::GRASS,
+                subsurface: blocks::DIRT,
+                relief: 1.05,
+                base_offset: 1.0,
+                tree_density: 0.07,
+                flora_density: 0.08,
+            },
         }
     }
 }
@@ -124,6 +138,12 @@ mod tests {
     }
 
     #[test]
+    fn mild_humid_upland_is_cherry_grove() {
+        let b = Biome::classify(0.3, 0.15, 80, 62);
+        assert_eq!(b, Biome::CherryGrove);
+    }
+
+    #[test]
     fn humid_is_forest() {
         let b = Biome::classify(0.2, 0.4, 80, 62);
         assert_eq!(b, Biome::Forest);
@@ -137,6 +157,7 @@ mod tests {
             Biome::Beach,
             Biome::SnowyPeaks,
             Biome::Dunes,
+            Biome::CherryGrove,
         ] {
             let p = b.profile();
             assert!(p.tree_density >= 0.0 && p.tree_density <= 1.0);

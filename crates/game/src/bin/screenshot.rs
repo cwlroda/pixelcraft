@@ -159,6 +159,21 @@ fn main() {
         println!("  (no cottage found near spawn this run)");
     }
 
+    // If a cherry grove is near, frame its pink canopy.
+    if let Some(cherry) = nearest_block(&game, ground, pixelcraft_core::block::blocks::CHERRY_LEAVES) {
+        // Look down over the grove from above the canopy.
+        let center = Vec3::new(cherry.x as f32, cherry.y as f32 - 4.0, cherry.z as f32);
+        let eye = center + Vec3::new(16.0, 16.0, 16.0);
+        let forward = (center - eye).normalize();
+        let env = Environment { time_of_day: 0.14, day_length: 600.0 };
+        let camera = Camera::new(eye, forward, aspect);
+        let path = format!("{out_dir}/08_cherry.png");
+        renderer.capture(&camera, &env, &path);
+        println!("  wrote {path} (cherry at {cherry:?})");
+    } else {
+        println!("  (no cherry grove near spawn this run)");
+    }
+
     // A critter close-up: frame the nearest ground critter to the cat.
     if let Some(critter) = game
         .entities

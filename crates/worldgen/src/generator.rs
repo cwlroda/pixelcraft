@@ -251,7 +251,7 @@ impl WorldGenerator {
                 let mut rng = SplitMix64::new(hash_coords(self.seed ^ 0x5EED, wx, wz));
                 let roll = rng.next_f32();
                 if roll < profile.tree_density {
-                    self.place_tree(storage, origin, wx, wz, surface, &mut rng);
+                    self.place_tree(storage, origin, wx, wz, surface, col.biome, &mut rng);
                 } else if roll < profile.tree_density + profile.flora_density {
                     self.place_flora(storage, origin, wx, wz, surface, col.biome, &mut rng);
                 }
@@ -367,9 +367,61 @@ impl WorldGenerator {
         self.stamp(storage, origin, bx + 2, floor_y + 1, bz + 2, blocks::LANTERN, true);
     }
 
-    /// Stamp a rounded cosy tree. The trunk sits at the column; the canopy is a
-    /// small blob of leaves. Only blocks inside the target chunk are written.
+    /// Stamp a tree whose species/shape suits the biome. Only blocks inside the
+    /// target chunk are written.
     fn place_tree(
+        &self,
+        storage: &mut ChunkStorage,
+        origin: pixelcraft_core::coords::BlockPos,
+        wx: i32,
+        wz: i32,
+        surface: i32,
+        biome: Biome,
+        rng: &mut SplitMix64,
+    ) {
+        match biome {
+            Biome::SnowyPeaks => self.place_pine(storage, origin, wx, wz, surface, rng),
+            Biome::CherryGrove => {
+                self.place_blob_tree(storage, origin, wx, wz, surface, blocks::CHERRY_LEAVES, rng)
+            }
+            _ => self.place_blob_tree(storage, origin, wx, wz, surface, blocks::LEAVES, rng),
+        }
+    }
+
+    /// A rounded broadleaf tree (oak / cherry) with a squashed-sphere canopy.
+    fn place_blob_tree(
+        &self,
+        storage: &mut ChunkStorage,
+        origin: pixelcraft_core::coords::BlockPos,
+        wx: i32,
+        wz: i32,
+        surface: i32,
+        leaf: BlockId,
+        rng: &mut SplitMix64,
+    ) {
+        let trunk_h = 4 + (rng.next_u64() % 3) as i32; // 4..6
+        let base = surface + 1;
+        for h in 0..trunk_h {
+            self.stamp(storage, origin, wx, base + h, wz, blocks::TRUNK, true);
+        }
+        let top = base + trunk_h;
+        let r = 2;
+        for dy in -1..=2 {
+            let layer_r = if dy >= 2 { 1 } else { r };
+            for dz in -layer_r..=layer_r {
+                for dx in -layer_r..=layer_r {
+                    if dx * dx + dz * dz + (dy * dy) / 2 > layer_r * layer_r + 1 {
+                        continue;
+                    }
+                    self.stamp(storage, origin, wx + dx, top + dy, wz + dz, leaf, false);
+                }
+            }
+        }
+    }
+
+    /// A tall conical conifer: a straight trunk with layered needle rings that
+    /// taper to a point.
+    fn place_pine(
         &self,
         storage: &mut ChunkStorage,
         origin: pixelcraft_core::coords::BlockPos,
@@ -378,35 +430,32 @@ impl WorldGenerator {
         surface: i32,
         rng: &mut SplitMix64,
     ) {
-        let trunk_h = 4 + (rng.next_u64() % 3) as i32; // 4..6
+        let trunk_h = 6 + (rng.next_u64() % 3) as i32; // 6..8
         let base = surface + 1;
-        // Trunk.
         for h in 0..trunk_h {
             self.stamp(storage, origin, wx, base + h, wz, blocks::TRUNK, true);
         }
-        // Canopy: a squashed sphere of leaves around the top.
-        let top = base + trunk_h;
-        let r = 2;
-        for dy in -1..=2 {
-            // Narrow the canopy at the very top for a rounded silhouette.
-            let layer_r = if dy >= 2 { 1 } else { r };
+        // Needle rings: widest near the bottom of the crown, tapering up.
+        let crown_base = base + trunk_h - 4;
+        let mut layer_r = 2;
+        let mut y = crown_base;
+        while layer_r >= 0 {
             for dz in -layer_r..=layer_r {
                 for dx in -layer_r..=layer_r {
-                    if dx * dx + dz * dz + (dy * dy) / 2 > layer_r * layer_r + 1 {
+                    if dx * dx + dz * dz > layer_r * layer_r + 1 {
                         continue;
                     }
-                    self.stamp(
-                        storage,
-                        origin,
-                        wx + dx,
-                        top + dy,
-                        wz + dz,
-                        blocks::LEAVES,
-                        false, // don't overwrite trunk with leaves
-                    );
+                    self.stamp(storage, origin, wx + dx, y, wz + dz, blocks::PINE_LEAVES, false);
                 }
             }
+            y += 1;
+            // Repeat each width once for a fuller cone, then shrink.
+            if (y - crown_base) % 2 == 0 {
+                layer_r -= 1;
+            }
         }
+        // A little tip.
+        self.stamp(storage, origin, wx, y, wz, blocks::PINE_LEAVES, false);
     }
 
     fn place_flora(
@@ -585,6 +634,30 @@ mod tests {
         for i in 0..pixelcraft_core::coords::CHUNK_VOLUME {
             assert_eq!(a.get_index(i), b.get_index(i));
         }
+    }
+
+    #[test]
+    fn cherry_groves_grow_pink_trees_somewhere() {
+        // Cherry groves are a specific climate band, so search a handful of
+        // seeds/chunks until we find their distinctive pink leaves.
+        let mut found = false;
+        'outer: for seed in 1..=20u64 {
+            let g = WorldGenerator::new(seed);
+            for cx in -3..=3 {
+                for cz in -3..=3 {
+                    for cy in 2..=3 {
+                        let c = g.generate_chunk(ChunkPos::new(cx, cy, cz));
+                        for i in 0..pixelcraft_core::coords::CHUNK_VOLUME {
+                            if c.get_index(i) == blocks::CHERRY_LEAVES {
+                                found = true;
+                                break 'outer;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(found, "no cherry blossom trees found across sampled seeds");
     }
 
     #[test]
