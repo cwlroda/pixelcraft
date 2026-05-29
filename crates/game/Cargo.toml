@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+name = "pixelcraft_game"
+path = "src/lib.rs"
+
 [[bin]]
 name = "pixelcraft"
 path = "src/main.rs"
@@ -14,3 +18,5 @@ pixelcraft-worldgen.workspace = true
 pixelcraft-mesh.workspace = true
 pixelcraft-physics.workspace = true
 glam.workspace = true
+bytemuck.workspace = true
+ahash.workspace = true

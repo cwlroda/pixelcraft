@@ -86,6 +86,8 @@ dependencies = [
 name = "pixelcraft-game"
 version = "0.1.0"
 dependencies = [
+ "ahash",
+ "bytemuck",
  "glam",
  "pixelcraft-core",
  "pixelcraft-mesh",
