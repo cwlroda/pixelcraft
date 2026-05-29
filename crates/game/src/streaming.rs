@@ -121,6 +121,9 @@ pub struct ChunkManager {
     pub config: StreamConfig,
     gen: WorldGenerator,
     meshes: AHashMap<ChunkPos, ChunkMesh>,
+    /// Bumped every time a chunk is (re)meshed, so the renderer can detect when
+    /// a cached GPU buffer is stale (e.g. after the player edits a block).
+    mesh_versions: AHashMap<ChunkPos, u64>,
     inflight: AHashSet<ChunkPos>,
     result_tx: Sender<(ChunkPos, ChunkStorage)>,
     result_rx: Receiver<(ChunkPos, ChunkStorage)>,
@@ -163,6 +166,7 @@ impl ChunkManager {
             config,
             gen,
             meshes: AHashMap::new(),
+            mesh_versions: AHashMap::new(),
             inflight: AHashSet::new(),
             result_tx,
             result_rx,
@@ -302,6 +306,7 @@ impl ChunkManager {
         for pos in to_remove {
             self.world.remove_chunk(pos);
             self.meshes.remove(&pos);
+            self.mesh_versions.remove(&pos);
         }
     }
 
@@ -327,6 +332,9 @@ impl ChunkManager {
             } else {
                 self.meshes.insert(pos, mesh);
             }
+            // Bump the version even when the mesh became empty, so the renderer
+            // drops a now-cleared chunk's stale buffers.
+            *self.mesh_versions.entry(pos).or_insert(0) += 1;
             if let Some(c) = self.world.get_chunk_mut(pos) {
                 c.dirty = false;
             }
@@ -347,6 +355,11 @@ impl ChunkManager {
 
     pub fn meshes(&self) -> impl Iterator<Item = (&ChunkPos, &ChunkMesh)> {
         self.meshes.iter()
+    }
+
+    /// Current mesh revision for a chunk; changes whenever it is remeshed.
+    pub fn mesh_version(&self, pos: ChunkPos) -> u64 {
+        self.mesh_versions.get(&pos).copied().unwrap_or(0)
     }
 
     pub fn mesh_count(&self) -> usize {

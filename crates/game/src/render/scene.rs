@@ -43,6 +43,8 @@ struct GpuLayer {
 struct GpuChunk {
     opaque: Option<GpuLayer>,
     transparent: Option<GpuLayer>,
+    /// Mesh revision this GPU data was built from; re-uploaded when it changes.
+    version: u64,
 }
 
 /// The shared GPU state.
@@ -122,9 +124,12 @@ impl GpuScene {
         self.chunks.retain(|p, _| live.contains(p));
 
         // Collect uploads first to avoid borrowing self immutably and mutably.
-        let mut uploads: Vec<(ChunkPos, Option<GpuLayer>, Option<GpuLayer>)> = Vec::new();
+        // Upload chunks we don't hold yet, or whose mesh revision has changed
+        // (e.g. after a block edit), so builds/mining update on screen.
+        let mut uploads: Vec<(ChunkPos, Option<GpuLayer>, Option<GpuLayer>, u64)> = Vec::new();
         for (pos, mesh) in manager.meshes() {
-            if self.chunks.contains_key(pos) {
+            let version = manager.mesh_version(*pos);
+            if self.chunks.get(pos).map(|c| c.version) == Some(version) {
                 continue;
             }
             let origin = pos.origin();
@@ -132,10 +137,17 @@ impl GpuScene {
             let opaque = self.upload_layer(&mesh.opaque.vertices, &mesh.opaque.indices, offset);
             let transparent =
                 self.upload_layer(&mesh.transparent.vertices, &mesh.transparent.indices, offset);
-            uploads.push((*pos, opaque, transparent));
+            uploads.push((*pos, opaque, transparent, version));
         }
-        for (pos, opaque, transparent) in uploads {
-            self.chunks.insert(pos, GpuChunk { opaque, transparent });
+        for (pos, opaque, transparent, version) in uploads {
+            self.chunks.insert(
+                pos,
+                GpuChunk {
+                    opaque,
+                    transparent,
+                    version,
+                },
+            );
         }
     }
 
