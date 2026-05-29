@@ -316,10 +316,11 @@ impl WorldGenerator {
         floor_y: i32,
         _rng: &mut SplitMix64,
     ) {
-        // Clear the building volume so trees/flora don't poke through.
-        for dz in 0..5 {
-            for dx in 0..5 {
-                for dy in 1..=6 {
+        // Clear the building volume (plus a one-block yard margin, and well
+        // above the roof) so trees and flora don't pierce the cottage.
+        for dz in -1..=5 {
+            for dx in -1..=5 {
+                for dy in 1..=10 {
                     self.stamp(storage, origin, bx + dx, floor_y + dy, bz + dz, BlockId::AIR, true);
                 }
             }

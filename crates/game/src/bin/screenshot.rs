@@ -95,10 +95,33 @@ fn main() {
 
     // If a cottage generated nearby, frame it for a close-up.
     if let Some(cottage) = nearest_block(&game, ground, pixelcraft_core::block::blocks::ROOF) {
-        // Aim at the body of the house from well above the treeline so forest
-        // canopies don't block the view.
+        // Clear the trees immediately around the house so the architecture is
+        // visible for the close-up (cosmetic, screenshot-only).
+        use pixelcraft_core::block::{blocks, BlockId};
+        use pixelcraft_core::coords::BlockPos;
+        for dx in -9..=9 {
+            for dz in -9..=9 {
+                for dy in -2..=12 {
+                    let p = BlockPos::new(cottage.x + dx, cottage.y + dy, cottage.z + dz);
+                    // Keep blocks belonging to the house footprint.
+                    if dx.abs() <= 3 && dz.abs() <= 3 && dy >= -6 {
+                        continue;
+                    }
+                    let b = game.manager.world.block_at(p);
+                    if b == blocks::TRUNK || b == blocks::LEAVES {
+                        game.manager.set_block(p, BlockId::AIR);
+                    }
+                }
+            }
+        }
+        // Remesh the edits, then refresh GPU buffers.
+        for _ in 0..6 {
+            game.manager.update(ground);
+        }
+        renderer.sync_meshes(&game.manager);
+
         let center = Vec3::new(cottage.x as f32, cottage.y as f32 - 3.0, cottage.z as f32);
-        let eye = center + Vec3::new(10.0, 16.0, 10.0);
+        let eye = center + Vec3::new(8.0, 6.0, 8.0);
         let forward = (center - eye).normalize();
         let env = Environment {
             time_of_day: 0.16,
