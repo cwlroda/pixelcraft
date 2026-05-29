@@ -16,6 +16,9 @@ pub struct Chunk {
     pub storage: ChunkStorage,
     /// Set when the voxels changed and the GPU mesh is stale.
     pub dirty: bool,
+    /// Set when a *player* edit changed this chunk (vs. freshly generated), so
+    /// it can be persisted across unload/save.
+    pub modified: bool,
 }
 
 impl Chunk {
@@ -24,6 +27,7 @@ impl Chunk {
             pos,
             storage,
             dirty: true,
+            modified: false,
         }
     }
 }
@@ -94,6 +98,7 @@ impl World {
         }
         chunk.storage.set(local, block);
         chunk.dirty = true;
+        chunk.modified = true;
         self.mark_border_neighbours_dirty(pos, cpos);
         true
     }

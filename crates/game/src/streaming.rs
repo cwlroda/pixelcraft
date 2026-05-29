@@ -124,6 +124,9 @@ pub struct ChunkManager {
     /// Bumped every time a chunk is (re)meshed, so the renderer can detect when
     /// a cached GPU buffer is stale (e.g. after the player edits a block).
     mesh_versions: AHashMap<ChunkPos, u64>,
+    /// Player-edited chunk storages, retained across unload so edits persist
+    /// (and can be saved). Re-applied when a chunk streams back in.
+    edits: AHashMap<ChunkPos, ChunkStorage>,
     inflight: AHashSet<ChunkPos>,
     result_tx: Sender<(ChunkPos, ChunkStorage)>,
     result_rx: Receiver<(ChunkPos, ChunkStorage)>,
@@ -167,6 +170,7 @@ impl ChunkManager {
             gen,
             meshes: AHashMap::new(),
             mesh_versions: AHashMap::new(),
+            edits: AHashMap::new(),
             inflight: AHashSet::new(),
             result_tx,
             result_rx,
@@ -179,6 +183,11 @@ impl ChunkManager {
 
     fn synchronous(&self) -> bool {
         self.workers.is_empty()
+    }
+
+    /// The world seed this manager generates from.
+    pub fn seed(&self) -> u64 {
+        self.gen.seed()
     }
 
     /// Terrain surface height for a world column (delegates to the generator),
@@ -234,6 +243,16 @@ impl ChunkManager {
 
         let budget = self.config.max_jobs_per_update;
         for p in wanted.into_iter().take(budget) {
+            // A previously edited chunk is restored from the edit store rather
+            // than regenerated, so player changes persist across streaming.
+            if let Some(storage) = self.edits.get(&p) {
+                self.world.insert_chunk(p, storage.clone());
+                if let Some(c) = self.world.get_chunk_mut(p) {
+                    c.modified = true;
+                }
+                self.mark_dirty_with_neighbours(p);
+                continue;
+            }
             self.inflight.insert(p);
             if self.synchronous() {
                 let storage = self.gen.generate_chunk(p);
@@ -309,7 +328,12 @@ impl ChunkManager {
             })
             .collect();
         for pos in to_remove {
-            self.world.remove_chunk(pos);
+            // Preserve player edits before dropping the chunk from memory.
+            if let Some(chunk) = self.world.remove_chunk(pos) {
+                if chunk.modified {
+                    self.edits.insert(pos, chunk.storage);
+                }
+            }
             self.meshes.remove(&pos);
             self.mesh_versions.remove(&pos);
         }
@@ -365,6 +389,25 @@ impl ChunkManager {
     /// Current mesh revision for a chunk; changes whenever it is remeshed.
     pub fn mesh_version(&self, pos: ChunkPos) -> u64 {
         self.mesh_versions.get(&pos).copied().unwrap_or(0)
+    }
+
+    /// All player edits, including chunks still loaded — the complete set needed
+    /// to persist the world. Merges the unload cache with live modified chunks.
+    pub fn collect_edits(&self) -> Vec<(ChunkPos, ChunkStorage)> {
+        let mut map: AHashMap<ChunkPos, ChunkStorage> = self.edits.clone();
+        for chunk in self.world.iter_chunks() {
+            if chunk.modified {
+                map.insert(chunk.pos, chunk.storage.clone());
+            }
+        }
+        map.into_iter().collect()
+    }
+
+    /// Inject saved edits (on load). They take effect as chunks stream in.
+    pub fn restore_edits(&mut self, edits: impl IntoIterator<Item = (ChunkPos, ChunkStorage)>) {
+        for (pos, storage) in edits {
+            self.edits.insert(pos, storage);
+        }
     }
 
     pub fn mesh_count(&self) -> usize {
@@ -497,6 +540,25 @@ mod tests {
         // But it does settle eventually.
         settle(&mut mgr, Vec3::new(0.0, 80.0, 0.0), 200);
         assert!(mgr.is_settled());
+    }
+
+    #[test]
+    fn edits_persist_across_unload_and_reload() {
+        let mut mgr = ChunkManager::new(99, small_config(1), 0);
+        settle(&mut mgr, Vec3::new(8.0, 80.0, 8.0), 10);
+        let p = BlockPos::new(8, 80, 8);
+        let original = mgr.world.block_at(p);
+        mgr.set_block(p, pixelcraft_core::block::blocks::LANTERN);
+        assert_eq!(mgr.world.block_at(p), pixelcraft_core::block::blocks::LANTERN);
+
+        // Wander far so the edited chunk unloads, then come back.
+        settle(&mut mgr, Vec3::new(5000.0, 80.0, 5000.0), 10);
+        assert!(!mgr.world.contains_chunk(p.chunk()));
+        settle(&mut mgr, Vec3::new(8.0, 80.0, 8.0), 10);
+
+        // The edit must have survived the round-trip.
+        assert_eq!(mgr.world.block_at(p), pixelcraft_core::block::blocks::LANTERN);
+        assert_ne!(original, pixelcraft_core::block::blocks::LANTERN);
     }
 
     #[test]

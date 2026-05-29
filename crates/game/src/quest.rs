@@ -97,6 +97,17 @@ impl QuestLog {
         self.current
     }
 
+    /// Progress toward the current quest's target.
+    pub fn progress(&self) -> u32 {
+        self.progress
+    }
+
+    /// Restore saved progress (used when loading a session).
+    pub fn restore(&mut self, completed: usize, progress: u32) {
+        self.current = completed.min(self.quests.len());
+        self.progress = progress;
+    }
+
     /// Objective text + (done, total) for the HUD.
     pub fn hud(&self) -> Option<(String, (u32, u32))> {
         self.current().map(|q| {

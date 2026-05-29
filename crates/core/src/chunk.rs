@@ -188,6 +188,53 @@ impl ChunkStorage {
             + self.data.capacity() * std::mem::size_of::<u64>()
     }
 
+    /// Serialise to a compact little-endian byte buffer:
+    /// `[bits u32][palette_len u32][palette: u16…][data_len u32][data: u64…]`.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(12 + self.palette.len() * 2 + self.data.len() * 8);
+        out.extend_from_slice(&self.bits.to_le_bytes());
+        out.extend_from_slice(&(self.palette.len() as u32).to_le_bytes());
+        for b in &self.palette {
+            out.extend_from_slice(&b.0.to_le_bytes());
+        }
+        out.extend_from_slice(&(self.data.len() as u32).to_le_bytes());
+        for w in &self.data {
+            out.extend_from_slice(&w.to_le_bytes());
+        }
+        out
+    }
+
+    /// Deserialise from [`ChunkStorage::to_bytes`], returning the storage and
+    /// the number of bytes consumed, or `None` if the buffer is malformed.
+    pub fn from_bytes(bytes: &[u8]) -> Option<(Self, usize)> {
+        let mut c = 0usize;
+        let read_u32 = |bytes: &[u8], c: &mut usize| -> Option<u32> {
+            let v = bytes.get(*c..*c + 4)?;
+            *c += 4;
+            Some(u32::from_le_bytes(v.try_into().ok()?))
+        };
+        let bits = read_u32(bytes, &mut c)?;
+        let palette_len = read_u32(bytes, &mut c)? as usize;
+        let mut palette = Vec::with_capacity(palette_len);
+        for _ in 0..palette_len {
+            let v = bytes.get(c..c + 2)?;
+            c += 2;
+            palette.push(BlockId(u16::from_le_bytes(v.try_into().ok()?)));
+        }
+        let data_len = read_u32(bytes, &mut c)? as usize;
+        // Sanity: data length must match the bit width.
+        if data_len != words_needed(bits) || palette.is_empty() {
+            return None;
+        }
+        let mut data = Vec::with_capacity(data_len);
+        for _ in 0..data_len {
+            let v = bytes.get(c..c + 8)?;
+            c += 8;
+            data.push(u64::from_le_bytes(v.try_into().ok()?));
+        }
+        Some((Self { palette, data, bits }, c))
+    }
+
     /// Drop the palette down to only blocks that are still referenced, and
     /// re-collapse to uniform when possible. Worth calling occasionally after
     /// heavy editing so long-lived chunks don't keep a bloated index width.
@@ -338,6 +385,35 @@ mod tests {
         assert_eq!(c.get_index(1), blocks::GRASS);
         assert_eq!(c.get_index(2), blocks::GRASS);
         assert_eq!(c.get_index(3), BlockId::AIR);
+    }
+
+    #[test]
+    fn serialization_roundtrips() {
+        // Uniform chunk.
+        let a = ChunkStorage::filled(blocks::STONE);
+        let (a2, _) = ChunkStorage::from_bytes(&a.to_bytes()).unwrap();
+        assert_eq!(a2.uniform_block(), Some(blocks::STONE));
+
+        // Mixed chunk.
+        let mut b = ChunkStorage::empty();
+        for i in 0..CHUNK_VOLUME {
+            if i % 3 == 0 {
+                b.set_index(i, blocks::DIRT);
+            } else if i % 5 == 0 {
+                b.set_index(i, blocks::WATER);
+            }
+        }
+        let bytes = b.to_bytes();
+        let (b2, consumed) = ChunkStorage::from_bytes(&bytes).unwrap();
+        assert_eq!(consumed, bytes.len());
+        for i in 0..CHUNK_VOLUME {
+            assert_eq!(b.get_index(i), b2.get_index(i), "mismatch at {i}");
+        }
+    }
+
+    #[test]
+    fn from_bytes_rejects_garbage() {
+        assert!(ChunkStorage::from_bytes(&[0, 1, 2]).is_none());
     }
 
     #[test]

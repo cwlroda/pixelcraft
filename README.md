@@ -43,7 +43,20 @@ cargo run --bin screenshot --features capture -- [seed] [out_dir]
 ```
 
 Controls: **WASD** move, **Space** jump, **Shift** sprint, **mouse** look,
-**left-click** mine, **right-click** place, **1–8 / scroll** select block.
+**left-click** mine, **right-click** place, **1–8 / scroll** select block,
+**E** talk to a cat, **F5 / F9** save / load.
+
+## Features
+
+Infinite deterministic terrain with 6 biomes (meadow, forest, cherry grove,
+beach, snowy peaks, dunes), cosy cottages, ore-bearing caves, biome-aware trees
+(oak / cherry blossom / pine); greedy meshing with ambient occlusion and
+procedural block textures; a day/night cycle with a gradient sky, sun/moon,
+stars and drifting clouds; animated water and swaying grass; glowing lanterns
+and crystals; ambient critters, butterflies, fireflies and chatty cat NPCs;
+cherry-petal and mining particles; a cosy quest chain; a HUD with crosshair,
+hotbar, clock and dialogue; and save/load that persists edits across the
+streamed world.
 
 ## Testing
 

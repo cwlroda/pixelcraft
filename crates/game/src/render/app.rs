@@ -115,6 +115,13 @@ impl ApplicationHandler for App {
                             if code == KeyCode::KeyE {
                                 state.game.talk();
                             }
+                            // Quick save / load.
+                            if code == KeyCode::F5 {
+                                state.save_game();
+                            }
+                            if code == KeyCode::F9 {
+                                state.load_game();
+                            }
                             state.keys.insert(code);
                         }
                         ElementState::Released => {
@@ -181,7 +188,30 @@ impl ApplicationHandler for App {
     }
 }
 
+const SAVE_PATH: &str = "pixelcraft_save.dat";
+
 impl State {
+    fn save_game(&self) {
+        let blob = crate::persistence::save_to_bytes(&self.game);
+        match std::fs::write(SAVE_PATH, blob) {
+            Ok(()) => println!("Saved to {SAVE_PATH}"),
+            Err(e) => eprintln!("Save failed: {e}"),
+        }
+    }
+
+    fn load_game(&mut self) {
+        match std::fs::read(SAVE_PATH) {
+            Ok(bytes) => match crate::persistence::load_from_bytes(&bytes, num_workers()) {
+                Some(game) => {
+                    self.game = game;
+                    println!("Loaded {SAVE_PATH}");
+                }
+                None => eprintln!("Save file is corrupt"),
+            },
+            Err(e) => eprintln!("Load failed: {e}"),
+        }
+    }
+
     fn frame(&mut self, event_loop: &ActiveEventLoop) {
         // Delta time, clamped so a stall doesn't fling the cat across the world.
         let now = Instant::now();

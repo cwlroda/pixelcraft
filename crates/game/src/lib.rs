@@ -10,6 +10,7 @@ pub mod environment;
 pub mod interaction;
 pub mod inventory;
 pub mod particle;
+pub mod persistence;
 pub mod quest;
 pub mod raycast;
 pub mod sampler;
