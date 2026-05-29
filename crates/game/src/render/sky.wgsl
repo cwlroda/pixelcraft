@@ -41,6 +41,30 @@ fn hash21(p : vec2<f32>) -> f32 {
     return h;
 }
 
+// Value noise + fBm for soft clouds.
+fn vnoise(p : vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let a = hash21(i);
+    let b = hash21(i + vec2<f32>(1.0, 0.0));
+    let c = hash21(i + vec2<f32>(0.0, 1.0));
+    let d = hash21(i + vec2<f32>(1.0, 1.0));
+    let u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+fn fbm(p : vec2<f32>) -> f32 {
+    var sum = 0.0;
+    var amp = 0.5;
+    var freq = p;
+    for (var i = 0; i < 4; i = i + 1) {
+        sum = sum + vnoise(freq) * amp;
+        freq = freq * 2.02;
+        amp = amp * 0.5;
+    }
+    return sum;
+}
+
 @fragment
 fn fs_main(in : VsOut) -> @location(0) vec4<f32> {
     // Reconstruct the world-space view ray for this pixel.
@@ -64,6 +88,20 @@ fn fs_main(in : VsOut) -> @location(0) vec4<f32> {
             let twinkle = hash21(grid + 3.0);
             col += vec3<f32>(1.0) * (1.0 - daylight) * (0.6 + 0.4 * twinkle);
         }
+    }
+
+    // Drifting clouds: project the ray onto a high plane and sample fBm,
+    // scrolling slowly with time. Fades out toward the horizon.
+    if dir.y > 0.03 {
+        let t = globals.sun_dir.w * 0.006;
+        let proj = dir.xz / dir.y;
+        let uv = proj * 0.6 + vec2<f32>(t, t * 0.5);
+        let n = fbm(uv);
+        let cover = smoothstep(0.52, 0.78, n) * smoothstep(0.03, 0.35, dir.y);
+        // Clouds tinted by the sky: bright by day, dusky at night.
+        let cloud_col = mix(globals.sky_color.rgb, vec3<f32>(1.0, 0.98, 0.96), 0.7)
+            * (0.45 + 0.55 * daylight);
+        col = mix(col, cloud_col, cover * 0.9);
     }
 
     // Sun disk + glow.
