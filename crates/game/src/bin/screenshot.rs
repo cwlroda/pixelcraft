@@ -441,6 +441,61 @@ fn main() {
         println!("  wrote {path} (crystal at {crystal:?})");
     }
 
+    // Build a little plank room with a lantern and shoot its glowing interior
+    // at night — showing off building + the lighting payoff.
+    {
+        use pixelcraft_core::block::{blocks, BlockId};
+        use pixelcraft_core::coords::BlockPos;
+        let bx = ground.x.floor() as i32 - 6;
+        let by = ground.y.floor() as i32;
+        let bz = ground.z.floor() as i32 - 6;
+        // Hollow 7×5×7 plank box (floor, walls, roof) with a doorway.
+        for dx in 0..7 {
+            for dy in 0..5 {
+                for dz in 0..7 {
+                    let shell = dx == 0 || dx == 6 || dy == 0 || dy == 4 || dz == 0 || dz == 6;
+                    let door = dz == 0 && dx == 3 && (dy == 1 || dy == 2);
+                    let p = BlockPos::new(bx + dx, by + dy, bz + dz);
+                    let block = if door {
+                        BlockId::AIR
+                    } else if shell {
+                        blocks::PLANK
+                    } else {
+                        BlockId::AIR
+                    };
+                    game.manager.set_block(p, block);
+                }
+            }
+        }
+        // A lantern hanging inside.
+        game.manager.set_block(BlockPos::new(bx + 3, by + 3, bz + 3), blocks::LANTERN);
+        for _ in 0..10 {
+            game.manager.update(ground);
+        }
+        renderer.sync_meshes(&game.manager);
+        renderer.update_highlight(None);
+        renderer.update_particles(&pixelcraft_game::particle::ParticleSystem::new(0));
+        let clean_hud = pixelcraft_game::render::HudState {
+            inventory: &game.inventory,
+            registry: &game.manager.registry,
+            time_of_day: 0.72,
+            objective: None,
+            objective_progress: None,
+            dialogue: None,
+            weather: None,
+            crafting: None,
+        };
+        renderer.update_hud(&clean_hud);
+        let center = Vec3::new(bx as f32 + 3.5, by as f32 + 2.0, bz as f32 + 3.5);
+        let eye = Vec3::new(bx as f32 + 1.4, by as f32 + 2.2, bz as f32 + 1.4);
+        let forward = (center - eye).normalize();
+        let env = Environment { time_of_day: 0.72, day_length: 600.0 };
+        let camera = Camera::new(eye, forward, aspect);
+        let path = format!("{out_dir}/17_room.png");
+        renderer.capture(&camera, &env, &path);
+        println!("  wrote {path}");
+    }
+
     // A day→night→day timelapse GIF over the valley.
     make_timelapse(&game, ground, &out_dir);
 

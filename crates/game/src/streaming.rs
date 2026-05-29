@@ -410,9 +410,32 @@ impl ChunkManager {
     }
 
     /// Edit a single block and mark the affected chunk(s) for remeshing. The
-    /// change takes visual effect on a subsequent `update`.
+    /// change takes visual effect on a subsequent `update`. Edits that change
+    /// emission or opacity also re-light (and thus remesh) the surrounding
+    /// chunk neighbourhood, so placing a lantern lights up the area.
     pub fn set_block(&mut self, pos: BlockPos, block: BlockId) -> bool {
-        self.world.set_block(pos, block)
+        let old = self.world.block_at(pos);
+        let applied = self.world.set_block(pos, block);
+        if applied && old != block {
+            let ob = self.registry.get(old);
+            let nb = self.registry.get(block);
+            let lighting_relevant = ob.light_emission > 0
+                || nb.light_emission > 0
+                || ob.occludes() != nb.occludes();
+            if lighting_relevant {
+                let c = pos.chunk();
+                for dz in -1..=1 {
+                    for dy in -1..=1 {
+                        for dx in -1..=1 {
+                            if let Some(ch) = self.world.get_chunk_mut(c.offset(dx, dy, dz)) {
+                                ch.dirty = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        applied
     }
 
     /// True if there are no outstanding generation jobs or dirty chunks — i.e.

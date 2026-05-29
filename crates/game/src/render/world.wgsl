@@ -75,22 +75,24 @@ fn fs_main(in : VsOut) -> @location(0) vec4<f32> {
 
     let n = normalize(in.normal);
 
-    // Baked voxel lighting: sky light scaled by the current daylight (so it
-    // dims at night), maxed with block (emitter) light which is constant. A
-    // small floor keeps shadows cosy rather than pitch black.
+    // Baked voxel lighting. Sky light is scaled by the current daylight and
+    // tinted by the sun/moon colour; block (emitter) light is constant and
+    // warm, so lanterns glow gold even under cool night light. The two are
+    // combined per-channel (whichever is brighter wins) over a cosy floor.
     let sky_brightness = globals.sky_color.a;
-    let level = max(in.light.y, in.light.x * sky_brightness);
-    let lit_amount = 0.05 + 0.95 * level;
+    let warm = vec3<f32>(1.0, 0.82, 0.55);
+    let sky_rgb = globals.sun_color.rgb * (in.light.x * sky_brightness);
+    let blk_rgb = warm * in.light.y;
+    let combined = max(sky_rgb, blk_rgb);
 
-    // Emissive blocks (lanterns, crystals, mushrooms) self-illuminate so they
-    // glow warmly regardless of surrounding light.
+    // Emissive blocks (lanterns, crystals, mushrooms) self-illuminate.
     var emissive = 0.0;
     if (in.layer == 12u) { emissive = 1.0; }       // lantern
     else if (in.layer == 18u) { emissive = 0.85; } // crystal
     else if (in.layer == 13u) { emissive = 0.35; } // mushroom
 
-    let surface_light = max(lit_amount, emissive);
-    var lit = albedo * surface_light * globals.sun_color.rgb;
+    let floor = vec3<f32>(0.05, 0.05, 0.06);
+    var lit = albedo * (max(combined, vec3<f32>(emissive)) + floor);
     // A little extra bloom of the block's own colour for emitters.
     lit += albedo * emissive * 0.5;
 
