@@ -104,6 +104,11 @@ impl Headless {
         self.scene.upload_entities(&v, &i);
     }
 
+    pub fn update_particles(&mut self, ps: &crate::particle::ParticleSystem) {
+        let (v, i) = ps.build_geometry(self.scene.white_layer());
+        self.scene.upload_particles(&v, &i);
+    }
+
     /// Rebuild the HUD overlay for the current frame.
     pub fn update_hud(&mut self, state: &super::ui::HudState) {
         let verts = super::ui::build_hud(self.width, self.height, state);

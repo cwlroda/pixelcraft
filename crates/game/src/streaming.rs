@@ -187,6 +187,11 @@ impl ChunkManager {
         self.gen.surface_height(wx, wz)
     }
 
+    /// Biome at a world column.
+    pub fn biome_at(&self, wx: i32, wz: i32) -> pixelcraft_worldgen::Biome {
+        self.gen.biome_at(wx, wz)
+    }
+
     /// Chunk containing a world position.
     pub fn chunk_of(pos: glam::Vec3) -> ChunkPos {
         BlockPos::new(

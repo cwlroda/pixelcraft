@@ -73,6 +73,11 @@ impl WorldGenerator {
         self.column(wx, wz).surface_height
     }
 
+    /// Biome at a world column.
+    pub fn biome_at(&self, wx: i32, wz: i32) -> Biome {
+        self.column(wx, wz).biome
+    }
+
     fn column(&self, wx: i32, wz: i32) -> Column {
         let fx = wx as f32;
         let fz = wz as f32;

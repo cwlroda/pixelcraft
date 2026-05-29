@@ -161,12 +161,19 @@ fn main() {
         println!("  (no cottage found near spawn this run)");
     }
 
-    // If a cherry grove is near, frame its pink canopy.
+    // If a cherry grove is near, frame its pink canopy with drifting petals.
     if let Some(cherry) = nearest_block(&game, ground, pixelcraft_core::block::blocks::CHERRY_LEAVES) {
         // Look down over the grove from above the canopy.
         let center = Vec3::new(cherry.x as f32, cherry.y as f32 - 4.0, cherry.z as f32);
         let eye = center + Vec3::new(16.0, 16.0, 16.0);
         let forward = (center - eye).normalize();
+        // Seed a flurry of petals around the grove for the shot.
+        let grove = Vec3::new(cherry.x as f32, cherry.y as f32, cherry.z as f32);
+        for _ in 0..120 {
+            game.particles.emit_petals(grove, 0.1);
+            game.particles.update(0.12);
+        }
+        renderer.update_particles(&game.particles);
         let env = Environment { time_of_day: 0.14, day_length: 600.0 };
         let camera = Camera::new(eye, forward, aspect);
         let path = format!("{out_dir}/08_cherry.png");

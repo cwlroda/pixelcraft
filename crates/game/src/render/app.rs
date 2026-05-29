@@ -226,6 +226,7 @@ impl State {
         // Push fresh/edited chunk meshes and the ambient critters to the GPU.
         self.renderer.sync_meshes(&self.game.manager);
         self.renderer.update_entities(&self.game.entities);
+        self.renderer.update_particles(&self.game.particles);
         let quest = self.game.quests.hud();
         let hud = super::HudState {
             inventory: &self.game.inventory,

@@ -9,6 +9,7 @@ pub mod entity;
 pub mod environment;
 pub mod interaction;
 pub mod inventory;
+pub mod particle;
 pub mod quest;
 pub mod raycast;
 pub mod sampler;
@@ -39,6 +40,7 @@ pub struct Game {
     pub entities: EntityManager,
     pub environment: Environment,
     pub quests: QuestLog,
+    pub particles: particle::ParticleSystem,
     /// Active NPC dialogue (speaker, line), shown for a few seconds.
     pub active_dialogue: Option<(String, String)>,
     dialogue_timer: f32,
@@ -62,6 +64,7 @@ impl Game {
             entities: EntityManager::new(seed, EntityConfig::default()),
             environment: Environment::default(),
             quests: QuestLog::cosy_chain(),
+            particles: particle::ParticleSystem::new(seed),
             active_dialogue: None,
             dialogue_timer: 0.0,
             time: 0.0,
@@ -81,8 +84,19 @@ impl Game {
     /// Mine the block the cat is looking at, crediting the inventory and quest
     /// log (and applying any quest reward). Returns the interaction outcome.
     pub fn do_mine(&mut self, eye: Vec3, look: Vec3) -> Interaction {
+        // Capture the target before mining so we can spawn debris at it.
+        let hit = interaction::target(&self.manager, eye, look);
         let result = interaction::mine(&mut self.manager, &mut self.inventory, eye, look);
         if let Interaction::Mined(id) = result {
+            if let Some(h) = hit {
+                let color = self.manager.registry.get(id).color;
+                let center = Vec3::new(
+                    h.block.x as f32 + 0.5,
+                    h.block.y as f32 + 0.5,
+                    h.block.z as f32 + 0.5,
+                );
+                self.particles.burst(center, color, 14);
+            }
             let reward = self.quests.on_collect(id, 1);
             self.grant(&reward);
         }
@@ -125,6 +139,16 @@ impl Game {
             &self.manager,
             self.environment.daylight(),
         );
+        // Cherry-blossom petals drift down when standing in a cherry grove.
+        if self.manager.biome_at(
+            self.player.position.x.floor() as i32,
+            self.player.position.z.floor() as i32,
+        ) == pixelcraft_worldgen::Biome::CherryGrove
+        {
+            self.particles.emit_petals(self.player.position, dt);
+        }
+        self.particles.update(dt);
+
         // Fade out any active dialogue.
         if self.dialogue_timer > 0.0 {
             self.dialogue_timer -= dt;

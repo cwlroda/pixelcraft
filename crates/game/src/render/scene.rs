@@ -61,6 +61,8 @@ pub struct GpuScene {
     chunks: AHashMap<ChunkPos, GpuChunk>,
     /// Dynamic geometry for ambient critters, rebuilt each frame.
     entities: Option<GpuLayer>,
+    /// Dynamic transparent geometry for particles (petals, debris).
+    particles: Option<GpuLayer>,
     ui_pipeline: wgpu::RenderPipeline,
     ui_buffer: Option<(wgpu::Buffer, u32)>,
     /// Index of the solid-white atlas tile, used by untextured geometry.
@@ -207,8 +209,14 @@ impl GpuScene {
             time: 0.0,
             chunks: AHashMap::new(),
             entities: None,
+            particles: None,
             render_distance: 16.0 * CHUNK_EDGE,
         }
+    }
+
+    /// Replace the per-frame particle geometry (drawn transparent).
+    pub fn upload_particles(&mut self, verts: &[Vertex], indices: &[u32]) {
+        self.particles = self.upload_layer(verts, indices, Vec3::ZERO);
     }
 
     /// Set the elapsed-time value used to drive vertex animation.
@@ -408,6 +416,11 @@ impl GpuScene {
                     draw_layer(&mut pass, layer);
                 }
             }
+        }
+
+        // Particles (petals, debris) blend over the world.
+        if let Some(layer) = &self.particles {
+            draw_layer(&mut pass, layer);
         }
 
         // HUD overlay last, on top of everything (depth-independent).
