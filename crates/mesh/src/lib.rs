@@ -116,13 +116,15 @@ impl MeshBuffers {
         colors: [[f32; 4]; 4],
         uvs: [[f32; 2]; 4],
         layer: u32,
-        light: [f32; 2],
+        lights: [[f32; 2]; 4],
         normal: [f32; 3],
         reverse_winding: bool,
         flip_diagonal: bool,
     ) {
         let base = self.vertices.len() as u32;
-        for ((position, color), uv) in corners.into_iter().zip(colors).zip(uvs) {
+        for (((position, color), uv), light) in
+            corners.into_iter().zip(colors).zip(uvs).zip(lights)
+        {
             self.vertices.push(Vertex {
                 position,
                 normal,
@@ -189,9 +191,10 @@ struct FaceKey {
     /// Corner occlusion 0..3 (0 = darkest crevice, 3 = fully open), ordered
     /// `[(-u,-v), (+u,-v), (+u,+v), (-u,+v)]` to match emitted quad corners.
     ao: [u8; 4],
-    /// Baked `(sky, block)` light of the air cell this face opens onto, so
-    /// faces only merge where lighting is identical too.
-    light: (u8, u8),
+    /// Baked `(sky, block)` light at the four face corners (smooth lighting:
+    /// each is the average of the cells touching that corner). Part of the merge
+    /// key so faces only merge where the light gradient matches.
+    light: [(u8, u8); 4],
 }
 
 /// Per-face directional shading for a soft, cosy look. Top faces are brightest,
@@ -253,7 +256,8 @@ fn cross_pass<S: BlockSampler>(
                 let colors = [[1.0, 1.0, 1.0, alpha]; 4];
                 let layer = id.0 as u32;
                 let (sky, blk) = light.get(x, y, z);
-                let lv = [sky as f32 / 15.0, blk as f32 / 15.0];
+                let lvc = [sky as f32 / 15.0, blk as f32 / 15.0];
+                let lv = [lvc; 4];
                 // The plant tile maps once across each quad.
                 let uvs = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
                 // Centre the billboard in the cell, sized per plant kind.
@@ -371,10 +375,9 @@ fn greedy_pass<S: BlockSampler>(
                         } else {
                             [3; 4]
                         };
-                        // Sample light from the air cell the face opens onto.
-                        let mut outer = lo;
-                        outer[d] = if positive { lo[d] + 1 } else { lo[d] };
-                        let light = light.get(outer[0], outer[1], outer[2]);
+                        // Smooth lighting: average the cells touching each of
+                        // the four face corners on the air side.
+                        let light = compute_light(light, lo, d, u, v, positive);
                         FaceKey {
                             block,
                             positive,
@@ -491,8 +494,53 @@ fn emit_quad(
     // interpolates smoothly instead of producing a hard diagonal seam.
     let flip_diagonal = key.ao[0] as i32 + key.ao[2] as i32 > key.ao[1] as i32 + key.ao[3] as i32;
 
-    let lv = [key.light.0 as f32 / 15.0, key.light.1 as f32 / 15.0];
-    out.push_quad([p0, p1, p2, p3], colors, uvs, layer, lv, normal, !key.positive, flip_diagonal);
+    let lights = [
+        [key.light[0].0 as f32 / 15.0, key.light[0].1 as f32 / 15.0],
+        [key.light[1].0 as f32 / 15.0, key.light[1].1 as f32 / 15.0],
+        [key.light[2].0 as f32 / 15.0, key.light[2].1 as f32 / 15.0],
+        [key.light[3].0 as f32 / 15.0, key.light[3].1 as f32 / 15.0],
+    ];
+    out.push_quad([p0, p1, p2, p3], colors, uvs, layer, lights, normal, !key.positive, flip_diagonal);
+}
+
+/// Smooth lighting: for each of the four face corners, average the `(sky,
+/// block)` light of the (up to four) cells touching that corner on the air
+/// side. Corners are ordered `[(-u,-v), (+u,-v), (+u,+v), (-u,+v)]`.
+fn compute_light(
+    light: &ChunkLight,
+    lo: [i32; 3],
+    d: usize,
+    u: usize,
+    v: usize,
+    positive: bool,
+) -> [(u8, u8); 4] {
+    let outer_d = if positive { lo[d] + 1 } else { lo[d] };
+    let i = lo[u];
+    let j = lo[v];
+    let sample = |ou: i32, ov: i32| -> (u16, u16) {
+        let mut p = [0i32; 3];
+        p[d] = outer_d;
+        p[u] = i + ou;
+        p[v] = j + ov;
+        let (s, b) = light.get(p[0], p[1], p[2]);
+        (s as u16, b as u16)
+    };
+    // Average the 2×2 block of cells around each corner.
+    let corner = |su: i32, sv: i32| -> (u8, u8) {
+        let a = sample(0, 0);
+        let b = sample(su, 0);
+        let c = sample(0, sv);
+        let e = sample(su, sv);
+        let sky = (a.0 + b.0 + c.0 + e.0) / 4;
+        let blk = (a.1 + b.1 + c.1 + e.1) / 4;
+        (sky as u8, blk as u8)
+    };
+    [
+        corner(-1, -1),
+        corner(1, -1),
+        corner(1, 1),
+        corner(-1, 1),
+    ]
 }
 
 /// Compute four-corner ambient occlusion for a face. `lo` is the lower voxel's
