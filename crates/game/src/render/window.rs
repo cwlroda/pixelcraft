@@ -96,6 +96,20 @@ impl Renderer {
         self.scene.upload_particles(&v, &i);
     }
 
+    /// Show the first-person held-block viewmodel (or hide it with `None`).
+    pub fn update_viewmodel(
+        &mut self,
+        model: Option<(glam::Vec3, glam::Vec3, glam::Vec3, u32, f32)>,
+    ) {
+        match model {
+            Some((eye, fwd, up, layer, bob)) => {
+                let (v, i) = super::scene::viewmodel_geometry(eye, fwd, up, layer, bob);
+                self.scene.upload_viewmodel(&v, &i);
+            }
+            None => self.scene.upload_viewmodel(&[], &[]),
+        }
+    }
+
     /// Highlight the targeted block, or clear it (`None`).
     pub fn update_highlight(&mut self, block: Option<pixelcraft_core::coords::BlockPos>) {
         match block {

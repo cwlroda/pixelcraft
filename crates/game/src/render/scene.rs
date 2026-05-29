@@ -65,6 +65,8 @@ pub struct GpuScene {
     particles: Option<GpuLayer>,
     /// The player's own cat model (third-person view only).
     player_model: Option<GpuLayer>,
+    /// First-person held-block viewmodel.
+    viewmodel: Option<GpuLayer>,
     /// Wireframe highlight on the targeted block.
     highlight: Option<GpuLayer>,
     ui_pipeline: wgpu::RenderPipeline,
@@ -216,6 +218,7 @@ impl GpuScene {
             entities: None,
             particles: None,
             player_model: None,
+            viewmodel: None,
             highlight: None,
             render_distance: 16.0 * CHUNK_EDGE,
         }
@@ -234,6 +237,11 @@ impl GpuScene {
     /// Replace the player's cat model geometry (empty slices = hide it).
     pub fn upload_player_model(&mut self, verts: &[Vertex], indices: &[u32]) {
         self.player_model = self.upload_layer(verts, indices, Vec3::ZERO);
+    }
+
+    /// Replace the first-person held-block viewmodel (empty = hide it).
+    pub fn upload_viewmodel(&mut self, verts: &[Vertex], indices: &[u32]) {
+        self.viewmodel = self.upload_layer(verts, indices, Vec3::ZERO);
     }
 
     /// Set the elapsed-time value used to drive vertex animation.
@@ -440,6 +448,9 @@ impl GpuScene {
             draw_layer(&mut pass, layer);
         }
         if let Some(layer) = &self.player_model {
+            draw_layer(&mut pass, layer);
+        }
+        if let Some(layer) = &self.viewmodel {
             draw_layer(&mut pass, layer);
         }
 
@@ -704,6 +715,61 @@ fn make_ui_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu:
         multiview: None,
         cache: None,
     })
+}
+
+/// Build the first-person held-block viewmodel: a small textured cube floating
+/// in front of the camera (bottom-right), bobbing with `bob`. `layer` is the
+/// held block's texture; the cube is oriented to the camera basis.
+pub fn viewmodel_geometry(
+    eye: Vec3,
+    forward: Vec3,
+    up: Vec3,
+    layer: u32,
+    bob: f32,
+) -> (Vec<Vertex>, Vec<u32>) {
+    let f = forward.normalize_or_zero();
+    let r = f.cross(up).normalize_or_zero();
+    let u = r.cross(f).normalize_or_zero();
+    let center = eye + f * 0.55 + r * 0.42 - u * (0.40 - bob * 0.03);
+    let s = 0.12;
+    // Cube corners in the camera basis, slightly tilted for a held look.
+    let mut verts = Vec::new();
+    let mut indices = Vec::new();
+    // Face definitions: (normal sign on basis axes, uv) built from 8 corners.
+    let corner = |sx: f32, sy: f32, sz: f32| center + r * (sx * s) + u * (sy * s) + f * (sz * s);
+    let c = [
+        corner(-1.0, -1.0, -1.0),
+        corner(1.0, -1.0, -1.0),
+        corner(1.0, 1.0, -1.0),
+        corner(-1.0, 1.0, -1.0),
+        corner(-1.0, -1.0, 1.0),
+        corner(1.0, -1.0, 1.0),
+        corner(1.0, 1.0, 1.0),
+        corner(-1.0, 1.0, 1.0),
+    ];
+    // (corner indices, normal, shade) for the three visible faces (front/top/right).
+    let faces: [([usize; 4], Vec3, f32); 3] = [
+        ([4, 5, 6, 7], -f, 0.7), // front (toward camera)
+        ([3, 2, 6, 7], u, 1.0),  // top
+        ([1, 5, 6, 2], r, 0.82), // right
+    ];
+    for (idx, normal, shade) in faces {
+        let base = verts.len() as u32;
+        let uvs = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+        for (k, &ci) in idx.iter().enumerate() {
+            let p = c[ci];
+            verts.push(Vertex {
+                position: [p.x, p.y, p.z],
+                normal: [normal.x, normal.y, normal.z],
+                color: [shade, shade, shade, 1.0],
+                uv: uvs[k],
+                layer,
+                light: [1.0, 1.0],
+            });
+        }
+        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+    (verts, indices)
 }
 
 /// Build a thin wireframe outline (12 edge bars) around the unit block at

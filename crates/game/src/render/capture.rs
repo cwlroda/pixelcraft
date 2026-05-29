@@ -120,6 +120,19 @@ impl Headless {
         }
     }
 
+    pub fn update_viewmodel(
+        &mut self,
+        model: Option<(glam::Vec3, glam::Vec3, glam::Vec3, u32, f32)>,
+    ) {
+        match model {
+            Some((eye, fwd, up, layer, bob)) => {
+                let (v, i) = super::scene::viewmodel_geometry(eye, fwd, up, layer, bob);
+                self.scene.upload_viewmodel(&v, &i);
+            }
+            None => self.scene.upload_viewmodel(&[], &[]),
+        }
+    }
+
     pub fn update_player_model(&mut self, model: Option<(glam::Vec3, f32)>) {
         match model {
             Some((pos, yaw)) => {

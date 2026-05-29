@@ -134,6 +134,9 @@ fn main() {
         ) {
             renderer.update_highlight(Some(hit.block));
         }
+        // Show the held-block viewmodel (selected hotbar block) in the corner.
+        let held = game.inventory.selected_block().0 as u32;
+        renderer.update_viewmodel(Some((eye, forward, Vec3::Y, held, 0.0)));
         let env = Environment {
             time_of_day: 0.12,
             day_length: 600.0,
@@ -142,6 +145,7 @@ fn main() {
         let path = format!("{out_dir}/15_highlight.png");
         renderer.capture(&camera, &env, &path);
         renderer.update_highlight(None);
+        renderer.update_viewmodel(None);
         println!("  wrote {path}");
     }
 

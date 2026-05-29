@@ -306,6 +306,24 @@ impl State {
             self.game.target_block()
         };
         self.renderer.update_highlight(target);
+
+        // First-person held-block viewmodel (hidden in third-person/crafting),
+        // bobbing while walking.
+        if self.third_person || self.game.crafting_open {
+            self.renderer.update_viewmodel(None);
+        } else {
+            let held = self.game.inventory.selected_block().0 as u32;
+            let v = self.game.player.velocity;
+            let moving = (v.x * v.x + v.z * v.z).sqrt() > 0.5;
+            let bob = if moving {
+                (self.game.time * 9.0).sin()
+            } else {
+                0.0
+            };
+            self.renderer
+                .update_viewmodel(Some((eye, look, Vec3::Y, held, bob)));
+        }
+
         let quest = self.game.quests.hud();
         let hud = super::HudState {
             inventory: &self.game.inventory,
