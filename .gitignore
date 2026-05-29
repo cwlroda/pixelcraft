@@ -2,3 +2,6 @@
 **/*.rs.bk
 *.pdb
 .DS_Store
+
+# Generated animation clips (large)
+*.gif

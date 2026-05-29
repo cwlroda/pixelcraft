@@ -200,7 +200,44 @@ fn main() {
         println!("  wrote {path}");
     }
 
+    // A day→night→day timelapse GIF over the valley.
+    make_timelapse(&game, ground, &out_dir);
+
     println!("Done. Screenshots in '{out_dir}/'.");
+}
+
+/// Render a small animated GIF cycling through a full day, showing the moving
+/// sky, sun/stars and rippling water.
+fn make_timelapse(game: &Game, ground: Vec3, out_dir: &str) {
+    const W: u32 = 480;
+    const H: u32 = 270;
+    const FRAMES: u32 = 40;
+
+    let mut clip = pixelcraft_game::render::Headless::new(W, H);
+    clip.set_render_distance(9.0 * CHUNK_EDGE);
+    clip.sync_meshes(&game.manager);
+    clip.update_entities(&game.entities);
+
+    let center = ground + Vec3::new(0.0, 2.0, 0.0);
+    let eye = center + Vec3::new(16.0, 12.0, 16.0);
+    let forward = (center - eye).normalize();
+    let camera = Camera::new(eye, forward, W as f32 / H as f32);
+
+    let path = format!("{out_dir}/09_daycycle.gif");
+    let file = std::fs::File::create(&path).expect("create gif");
+    let mut encoder = gif::Encoder::new(file, W as u16, H as u16, &[]).expect("gif encoder");
+    encoder.set_repeat(gif::Repeat::Infinite).ok();
+
+    for i in 0..FRAMES {
+        let tod = i as f32 / FRAMES as f32;
+        let env = Environment { time_of_day: tod, day_length: 600.0 };
+        clip.set_time(i as f32 * 0.35);
+        let mut rgba = clip.capture_rgba(&camera, &env);
+        let mut frame = gif::Frame::from_rgba_speed(W as u16, H as u16, &mut rgba, 10);
+        frame.delay = 8; // ~80 ms per frame
+        encoder.write_frame(&frame).expect("write gif frame");
+    }
+    println!("  wrote {path} ({FRAMES} frames)");
 }
 
 /// Scan loaded chunks for the nearest voxel of `target` to `near`.

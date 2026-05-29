@@ -110,8 +110,21 @@ impl Headless {
         self.scene.upload_ui(&verts);
     }
 
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
     /// Render one frame and save it as a PNG at `path`.
     pub fn capture(&self, camera: &Camera, env: &Environment, path: impl AsRef<Path>) {
+        let pixels = self.capture_rgba(camera, env);
+        write_png(path.as_ref(), self.width, self.height, &pixels);
+    }
+
+    /// Render one frame and return the tightly-packed RGBA pixels.
+    pub fn capture_rgba(&self, camera: &Camera, env: &Environment) -> Vec<u8> {
         self.scene.update_globals(camera, env);
         let frustum = camera.frustum();
 
@@ -170,8 +183,7 @@ impl Headless {
         }
         drop(data);
         self.output_buffer.unmap();
-
-        write_png(path.as_ref(), self.width, self.height, &pixels);
+        pixels
     }
 }
 
