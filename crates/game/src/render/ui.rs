@@ -83,6 +83,8 @@ pub struct HudState<'a> {
     /// Optional quest objective line and its progress (done, total).
     pub objective: Option<String>,
     pub objective_progress: Option<(u32, u32)>,
+    /// Active NPC dialogue (speaker, line).
+    pub dialogue: Option<(String, String)>,
 }
 
 /// Build the full HUD for the current frame.
@@ -161,6 +163,19 @@ pub fn build_hud(screen_w: u32, screen_h: u32, state: &HudState) -> Vec<UiVertex
     let tw = super::font::text_width(&name, scale);
     b.text_shadow((w - tw) * 0.5, y - 26.0, scale, &name, [1.0, 1.0, 1.0, 0.95]);
 
+    // --- NPC dialogue panel ---------------------------------------------
+    if let Some((speaker, line)) = &state.dialogue {
+        let panel_w = (w * 0.6).min(620.0);
+        let panel_h = 86.0;
+        let px = (w - panel_w) * 0.5;
+        let py = h * 0.5 + 60.0;
+        b.rect(px, py, panel_w, panel_h, [0.10, 0.10, 0.16, 0.78]);
+        b.rect(px, py, panel_w, 4.0, [1.0, 0.85, 0.5, 0.95]); // accent bar
+        b.text_shadow(px + 14.0, py + 12.0, 3.0, speaker, [1.0, 0.86, 0.55, 1.0]);
+        b.text_shadow(px + 14.0, py + 44.0, 2.5, line, [1.0, 1.0, 1.0, 0.96]);
+        b.text(px + panel_w - 70.0, py + panel_h - 16.0, 1.5, "PRESS E", [1.0, 1.0, 1.0, 0.5]);
+    }
+
     b.verts
 }
 
@@ -180,6 +195,7 @@ mod tests {
             time_of_day: 0.25,
             objective: Some("COLLECT BERRIES".to_string()),
             objective_progress: Some((2, 5)),
+            dialogue: Some(("MITTENS".to_string(), "HELLO THERE!".to_string())),
         };
         let verts = build_hud(1280, 720, &state);
         assert!(!verts.is_empty());

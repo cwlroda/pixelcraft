@@ -82,6 +82,7 @@ fn main() {
         time_of_day: 0.12,
         objective: quest.as_ref().map(|(t, _)| t.clone()),
         objective_progress: quest.as_ref().map(|(_, p)| *p),
+        dialogue: None,
     };
     renderer.update_hud(&hud);
     println!(
@@ -198,6 +199,44 @@ fn main() {
         let path = format!("{out_dir}/07_critter.png");
         renderer.capture(&camera, &env, &path);
         println!("  wrote {path}");
+    }
+
+    // A friendly cat NPC with a dialogue box.
+    if let Some((pos, name, line)) = game
+        .entities
+        .entities
+        .iter()
+        .filter(|e| e.kind == pixelcraft_game::EntityKind::Friend)
+        .min_by(|a, b| {
+            a.position
+                .distance_squared(ground)
+                .total_cmp(&b.position.distance_squared(ground))
+        })
+        .and_then(|e| {
+            e.npc
+                .as_ref()
+                .map(|n| (e.position, n.name.to_string(), n.lines[0].to_string()))
+        })
+    {
+        let center = pos + Vec3::new(0.0, 0.5, 0.0);
+        let eye = center + Vec3::new(1.8, 0.6, 1.8);
+        let forward = (center - eye).normalize();
+        let env = Environment { time_of_day: 0.15, day_length: 600.0 };
+        let camera = Camera::new(eye, forward, aspect);
+        let hud = pixelcraft_game::render::HudState {
+            inventory: &game.inventory,
+            registry: &game.manager.registry,
+            time_of_day: 0.15,
+            objective: None,
+            objective_progress: None,
+            dialogue: Some((name, line)),
+        };
+        renderer.update_hud(&hud);
+        let path = format!("{out_dir}/11_friend.png");
+        renderer.capture(&camera, &env, &path);
+        println!("  wrote {path}");
+    } else {
+        println!("  (no friendly cat near spawn this run)");
     }
 
     // A cosy night scene with glowing lanterns: stack a little lantern post

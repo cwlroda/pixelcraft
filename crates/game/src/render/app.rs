@@ -111,6 +111,10 @@ impl ApplicationHandler for App {
                             if let Some(slot) = digit_slot(code) {
                                 state.game.inventory.select(slot);
                             }
+                            // Talk to a nearby friendly cat.
+                            if code == KeyCode::KeyE {
+                                state.game.talk();
+                            }
                             state.keys.insert(code);
                         }
                         ElementState::Released => {
@@ -232,6 +236,7 @@ impl State {
                 .map(|(t, _)| t.clone())
                 .or_else(|| Some("ALL QUESTS DONE - ENJOY!".to_string())),
             objective_progress: quest.as_ref().map(|(_, p)| *p),
+            dialogue: self.game.active_dialogue.clone(),
         };
         self.renderer.update_hud(&hud);
 

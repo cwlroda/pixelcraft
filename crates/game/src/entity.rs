@@ -25,7 +25,45 @@ pub enum EntityKind {
     Butterfly,
     /// A nighttime firefly that drifts and glows.
     Firefly,
+    /// A friendly sentient cat NPC you can talk to.
+    Friend,
 }
+
+/// Dialogue data for a friendly cat NPC.
+#[derive(Clone)]
+pub struct Npc {
+    pub name: &'static str,
+    pub lines: &'static [&'static str],
+    pub line: usize,
+}
+
+/// The cast of friendly cats and their cosy chatter.
+const FRIENDS: &[(&str, &[&str])] = &[
+    (
+        "MITTENS",
+        &[
+            "OH, HELLO TRAVELLER!",
+            "THE BLOSSOMS ARE LOVELY TODAY.",
+            "MIND THE PUDDLES, HEE HEE!",
+        ],
+    ),
+    (
+        "BISCUIT",
+        &[
+            "PURR... WELCOME TO THE VALLEY.",
+            "I AM BUILDING A COSY HOME NEARBY.",
+            "HAVE YOU TRIED THE SWEET BERRIES?",
+        ],
+    ),
+    (
+        "CLOVER",
+        &[
+            "MEOW! LOST AGAIN, FRIEND?",
+            "LANTERNS KEEP THE NIGHT FRIENDLY.",
+            "SAFE TRAVELS, LITTLE ONE.",
+        ],
+    ),
+];
 
 #[derive(Clone)]
 pub struct Entity {
@@ -42,12 +80,15 @@ pub struct Entity {
     phase: f32,
     /// Anchor point flyers loosely orbit.
     home: Vec3,
+    /// Dialogue, present only for [`EntityKind::Friend`].
+    pub npc: Option<Npc>,
 }
 
 impl Entity {
     fn half_extents(&self) -> (f32, f32) {
         match self.kind {
             EntityKind::Critter => (0.32, 0.5),
+            EntityKind::Friend => (0.3, 0.5),
             EntityKind::Butterfly => (0.18, 0.2),
             EntityKind::Firefly => (0.12, 0.12),
         }
@@ -154,15 +195,18 @@ impl EntityManager {
             return None; // chunk not loaded here yet
         }
 
-        // Choose a species appropriate to the time of day.
+        // Choose a species appropriate to the time of day. A friendly cat NPC
+        // appears occasionally regardless of the hour.
         let roll = self.rng.next_f32();
-        let kind = if is_night {
+        let kind = if roll < 0.1 {
+            EntityKind::Friend
+        } else if is_night {
             if roll < 0.6 {
                 EntityKind::Firefly
             } else {
                 EntityKind::Critter
             }
-        } else if roll < 0.5 {
+        } else if roll < 0.55 {
             EntityKind::Butterfly
         } else {
             EntityKind::Critter
@@ -170,9 +214,15 @@ impl EntityManager {
 
         let base = Vec3::new(x, surface as f32 + 1.0, z);
         let home = match kind {
-            EntityKind::Critter => base,
+            EntityKind::Critter | EntityKind::Friend => base,
             // Flyers hover a few blocks above the ground.
             _ => base + Vec3::new(0.0, 2.0 + self.rng.next_f32() * 3.0, 0.0),
+        };
+        let npc = if kind == EntityKind::Friend {
+            let (name, lines) = FRIENDS[(self.rng.next_u64() as usize) % FRIENDS.len()];
+            Some(Npc { name, lines, line: 0 })
+        } else {
+            None
         };
         Some(Entity {
             kind,
@@ -184,7 +234,39 @@ impl EntityManager {
             heading: Vec3::new(theta.cos(), 0.0, theta.sin()),
             phase: self.rng.next_f32() * std::f32::consts::TAU,
             home,
+            npc,
         })
+    }
+
+    /// Find the friendly cat the player is looking at (within reach) and return
+    /// its current dialogue line, advancing to the next line for the next chat.
+    pub fn talk_to(&mut self, eye: Vec3, look: Vec3) -> Option<(String, String)> {
+        let mut best: Option<(usize, f32)> = None;
+        for (idx, e) in self.entities.iter().enumerate() {
+            if e.kind != EntityKind::Friend {
+                continue;
+            }
+            let to = (e.position + Vec3::new(0.0, 0.4, 0.0)) - eye;
+            let dist = to.length();
+            if dist > 5.0 || dist < 0.01 {
+                continue;
+            }
+            let align = to.normalize().dot(look);
+            if align < 0.9 {
+                continue;
+            }
+            // Prefer the most centred (best-aligned) friend.
+            if best.map(|(_, a)| align > a).unwrap_or(true) {
+                best = Some((idx, align));
+            }
+        }
+        let (idx, _) = best?;
+        let e = &mut self.entities[idx];
+        let npc = e.npc.as_mut()?;
+        let line = npc.lines[npc.line % npc.lines.len()].to_string();
+        let name = npc.name.to_string();
+        npc.line = npc.line.wrapping_add(1);
+        Some((name, line))
     }
 
     /// Build renderable cube geometry for all entities (world-space). Entities
@@ -213,21 +295,22 @@ fn update_entity<Q: SolidQuery>(
     e.decision_timer -= dt;
 
     match e.kind {
-        EntityKind::Critter => {
+        EntityKind::Critter | EntityKind::Friend => {
+            let is_friend = e.kind == EntityKind::Friend;
             if e.decision_timer <= 0.0 {
                 // Pick a new wander heading and schedule the next decision.
                 let theta = rng.next_f32() * std::f32::consts::TAU;
                 e.heading = Vec3::new(theta.cos(), 0.0, theta.sin());
                 e.yaw = theta;
                 e.decision_timer = 1.5 + rng.next_f32() * 2.5;
-                // Occasionally hop for a touch of personality.
-                if e.on_ground && rng.next_f32() < 0.4 {
+                // Critters occasionally hop; the dignified cats do not.
+                if !is_friend && e.on_ground && rng.next_f32() < 0.4 {
                     e.velocity.y = 6.0;
                     e.on_ground = false;
                 }
             }
-            // Amble in the current heading.
-            let speed = 1.6;
+            // Amble in the current heading (friends stroll more slowly).
+            let speed = if is_friend { 0.9 } else { 1.6 };
             e.velocity.x = e.heading.x * speed;
             e.velocity.z = e.heading.z * speed;
             e.velocity.y -= GRAVITY * dt;
@@ -367,6 +450,27 @@ fn append_entity(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, e: &Entity, la
             // Tiny warm glowing mote (bright colour stands in for emission).
             let glow = Color::rgb(255, 244, 170);
             append_box(verts, indices, p + Vec3::new(-0.09, 0.0, -0.09), p + Vec3::new(0.09, 0.18, 0.09), glow, layer);
+        }
+        EntityKind::Friend => {
+            // A sit-up tabby cat: body, head, two ears, and a curled tail.
+            let fur = Color::rgb(176, 168, 196); // soft lilac-grey tabby
+            let ear = Color::rgb(150, 142, 172);
+            let (sy, cy) = e.yaw.sin_cos();
+            let fwd = Vec3::new(sy, 0.0, cy);
+            let right = Vec3::new(cy, 0.0, -sy);
+            // Body.
+            append_box(verts, indices, p + Vec3::new(-0.22, 0.0, -0.22), p + Vec3::new(0.22, 0.42, 0.22), fur, layer);
+            // Head sits forward and up.
+            let head = p + Vec3::new(0.0, 0.42, 0.0) + fwd * 0.06;
+            append_box(verts, indices, head + Vec3::new(-0.18, 0.0, -0.18), head + Vec3::new(0.18, 0.34, 0.18), fur, layer);
+            // Ears.
+            for side in [-0.12f32, 0.12] {
+                let base = head + Vec3::new(0.0, 0.34, 0.0) + right * side + fwd * 0.02;
+                append_box(verts, indices, base + Vec3::new(-0.06, 0.0, -0.06), base + Vec3::new(0.06, 0.12, 0.06), ear, layer);
+            }
+            // Curled tail at the back.
+            let tail = p - fwd * 0.24 + Vec3::new(0.0, 0.1, 0.0);
+            append_box(verts, indices, tail + Vec3::new(-0.06, 0.0, -0.06), tail + Vec3::new(0.06, 0.3, 0.06), ear, layer);
         }
     }
 }

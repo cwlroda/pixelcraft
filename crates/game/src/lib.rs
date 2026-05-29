@@ -39,6 +39,9 @@ pub struct Game {
     pub entities: EntityManager,
     pub environment: Environment,
     pub quests: QuestLog,
+    /// Active NPC dialogue (speaker, line), shown for a few seconds.
+    pub active_dialogue: Option<(String, String)>,
+    dialogue_timer: f32,
     /// Seconds of accumulated simulation time.
     pub time: f32,
 }
@@ -59,7 +62,19 @@ impl Game {
             entities: EntityManager::new(seed, EntityConfig::default()),
             environment: Environment::default(),
             quests: QuestLog::cosy_chain(),
+            active_dialogue: None,
+            dialogue_timer: 0.0,
             time: 0.0,
+        }
+    }
+
+    /// Talk to the friendly cat the player is looking at, if any.
+    pub fn talk(&mut self) {
+        let eye = self.player.eye();
+        let look = self.player.look_dir();
+        if let Some(line) = self.entities.talk_to(eye, look) {
+            self.active_dialogue = Some(line);
+            self.dialogue_timer = 6.0;
         }
     }
 
@@ -110,6 +125,13 @@ impl Game {
             &self.manager,
             self.environment.daylight(),
         );
+        // Fade out any active dialogue.
+        if self.dialogue_timer > 0.0 {
+            self.dialogue_timer -= dt;
+            if self.dialogue_timer <= 0.0 {
+                self.active_dialogue = None;
+            }
+        }
     }
 
     /// Is the spawn area fully streamed in (so the player won't fall through
