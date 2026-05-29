@@ -43,9 +43,15 @@ impl Inventory {
 
     /// Remove up to one of `id`; returns true if one was available and consumed.
     pub fn take_one(&mut self, id: BlockId) -> bool {
+        self.take(id, 1)
+    }
+
+    /// Remove `n` of `id` if at least that many are held; returns whether it
+    /// succeeded (all-or-nothing).
+    pub fn take(&mut self, id: BlockId, n: u32) -> bool {
         if let Some(c) = self.counts.get_mut(id.index()) {
-            if *c > 0 {
-                *c -= 1;
+            if *c >= n {
+                *c -= n;
                 return true;
             }
         }

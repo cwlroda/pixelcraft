@@ -109,9 +109,20 @@ impl ApplicationHandler for App {
                                 event_loop.exit();
                                 return;
                             }
-                            // Hotbar number keys 1..8.
+                            // Toggle the crafting menu (frees the cursor).
+                            if code == KeyCode::KeyC {
+                                state.game.crafting_open = !state.game.crafting_open;
+                                state.mouse_grabbed =
+                                    grab_cursor(&state.window, !state.game.crafting_open);
+                            }
+                            // Number keys: craft when the menu is open, else
+                            // select a hotbar slot.
                             if let Some(slot) = digit_slot(code) {
-                                state.game.inventory.select(slot);
+                                if state.game.crafting_open {
+                                    state.game.craft(slot);
+                                } else {
+                                    state.game.inventory.select(slot);
+                                }
                             }
                             // Talk to a nearby friendly cat.
                             if code == KeyCode::KeyE {
@@ -252,11 +263,16 @@ impl State {
         // (routed through the game so the quest log and inventory update).
         let eye = self.game.player.eye();
         let look = self.game.player.look_dir();
-        if std::mem::take(&mut self.mine_queued) {
-            self.game.do_mine(eye, look);
-        }
-        if std::mem::take(&mut self.place_queued) {
-            self.game.do_place(eye, look);
+        // Block edits are ignored while the crafting menu is open.
+        let mine = std::mem::take(&mut self.mine_queued);
+        let place = std::mem::take(&mut self.place_queued);
+        if !self.game.crafting_open {
+            if mine {
+                self.game.do_mine(eye, look);
+            }
+            if place {
+                self.game.do_place(eye, look);
+            }
         }
 
         // Push fresh/edited chunk meshes and the ambient critters to the GPU.
@@ -275,6 +291,12 @@ impl State {
             objective_progress: quest.as_ref().map(|(_, p)| *p),
             dialogue: self.game.active_dialogue.clone(),
             weather: Some(self.game.weather.label().to_string()),
+            crafting: self.game.crafting_open.then(|| {
+                crate::crafting::recipes()
+                    .iter()
+                    .map(|r| (r.name.to_string(), r.affordable(&self.game.inventory)))
+                    .collect()
+            }),
         };
         self.renderer.update_hud(&hud);
 

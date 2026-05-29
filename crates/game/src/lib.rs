@@ -5,6 +5,7 @@
 //! the binary (`main.rs`) and consumes these systems.
 
 pub mod camera;
+pub mod crafting;
 pub mod entity;
 pub mod environment;
 pub mod interaction;
@@ -80,6 +81,8 @@ pub struct Game {
     /// Active NPC dialogue (speaker, line), shown for a few seconds.
     pub active_dialogue: Option<(String, String)>,
     dialogue_timer: f32,
+    /// Whether the crafting menu is open.
+    pub crafting_open: bool,
     /// Seconds of accumulated simulation time.
     pub time: f32,
 }
@@ -104,8 +107,14 @@ impl Game {
             weather: Weather::Clear,
             active_dialogue: None,
             dialogue_timer: 0.0,
+            crafting_open: false,
             time: 0.0,
         }
+    }
+
+    /// Craft recipe `index` from the recipe book, if affordable.
+    pub fn craft(&mut self, index: usize) -> bool {
+        crafting::craft(&mut self.inventory, index)
     }
 
     /// Talk to the friendly cat the player is looking at, if any.

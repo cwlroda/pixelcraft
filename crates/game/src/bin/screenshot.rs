@@ -84,6 +84,7 @@ fn main() {
         objective_progress: quest.as_ref().map(|(_, p)| *p),
         dialogue: None,
         weather: Some(game.weather.label().to_string()),
+        crafting: None,
     };
     renderer.update_hud(&hud);
     println!(
@@ -239,6 +240,7 @@ fn main() {
             objective_progress: None,
             dialogue: Some((name, line)),
             weather: None,
+            crafting: None,
         };
         renderer.update_hud(&hud);
         let path = format!("{out_dir}/11_friend.png");
@@ -305,6 +307,7 @@ fn main() {
             objective_progress: game.quests.hud().map(|(_, p)| p),
             dialogue: None,
             weather: None,
+            crafting: None,
         };
         renderer.update_hud(&hud);
         let path = format!("{out_dir}/12_hero.png");
@@ -333,9 +336,36 @@ fn main() {
             objective_progress: quest.as_ref().map(|(_, p)| *p),
             dialogue: None,
             weather: Some("RAIN".to_string()),
+            crafting: None,
         };
         renderer.update_hud(&hud);
         let path = format!("{out_dir}/13_rain.png");
+        renderer.capture(&camera, &env, &path);
+        println!("  wrote {path}");
+    }
+
+    // The crafting menu open over the world.
+    {
+        let eye = ground + Vec3::new(0.0, 1.5, 0.0);
+        let camera = Camera::new(eye, look_dir(0.6, -0.1), aspect);
+        let env = Environment { time_of_day: 0.14, day_length: 600.0 };
+        let rows: Vec<(String, bool)> = pixelcraft_game::crafting::recipes()
+            .iter()
+            .map(|r| (r.name.to_string(), r.affordable(&game.inventory)))
+            .collect();
+        let hud = pixelcraft_game::render::HudState {
+            inventory: &game.inventory,
+            registry: &game.manager.registry,
+            time_of_day: 0.14,
+            objective: None,
+            objective_progress: None,
+            dialogue: None,
+            weather: None,
+            crafting: Some(rows),
+        };
+        renderer.update_particles(&pixelcraft_game::particle::ParticleSystem::new(0)); // clear rain
+        renderer.update_hud(&hud);
+        let path = format!("{out_dir}/14_crafting.png");
         renderer.capture(&camera, &env, &path);
         println!("  wrote {path}");
     }

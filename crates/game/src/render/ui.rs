@@ -87,6 +87,8 @@ pub struct HudState<'a> {
     pub dialogue: Option<(String, String)>,
     /// Short weather label (e.g. "RAIN").
     pub weather: Option<String>,
+    /// When the crafting menu is open, recipe rows: (name, affordable).
+    pub crafting: Option<Vec<(String, bool)>>,
 }
 
 /// Build the full HUD for the current frame.
@@ -170,6 +172,29 @@ pub fn build_hud(screen_w: u32, screen_h: u32, state: &HudState) -> Vec<UiVertex
     let tw = super::font::text_width(&name, scale);
     b.text_shadow((w - tw) * 0.5, y - 26.0, scale, &name, [1.0, 1.0, 1.0, 0.95]);
 
+    // --- Crafting menu ---------------------------------------------------
+    if let Some(rows) = &state.crafting {
+        let panel_w = 360.0;
+        let row_h = 30.0;
+        let panel_h = 44.0 + rows.len() as f32 * row_h;
+        let px = (w - panel_w) * 0.5;
+        let py = (h - panel_h) * 0.5;
+        b.rect(px, py, panel_w, panel_h, [0.08, 0.08, 0.13, 0.9]);
+        b.rect(px, py, panel_w, 5.0, [0.6, 0.85, 1.0, 0.95]);
+        b.text_shadow(px + 14.0, py + 12.0, 3.0, "CRAFTING", [0.8, 0.92, 1.0, 1.0]);
+        for (i, (name, affordable)) in rows.iter().enumerate() {
+            let ry = py + 44.0 + i as f32 * row_h;
+            let col = if *affordable {
+                [1.0, 1.0, 1.0, 1.0]
+            } else {
+                [0.5, 0.5, 0.55, 1.0]
+            };
+            let label = format!("{}  {}", i + 1, name);
+            b.text_shadow(px + 16.0, ry, 2.5, &label, col);
+        }
+        b.text(px + 14.0, py + panel_h - 16.0, 1.5, "PRESS NUMBER TO CRAFT - C TO CLOSE", [1.0, 1.0, 1.0, 0.5]);
+    }
+
     // --- NPC dialogue panel ---------------------------------------------
     if let Some((speaker, line)) = &state.dialogue {
         let panel_w = (w * 0.6).min(620.0);
@@ -204,6 +229,7 @@ mod tests {
             objective_progress: Some((2, 5)),
             dialogue: Some(("MITTENS".to_string(), "HELLO THERE!".to_string())),
             weather: Some("RAIN".to_string()),
+            crafting: None,
         };
         let verts = build_hud(1280, 720, &state);
         assert!(!verts.is_empty());
