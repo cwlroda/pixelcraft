@@ -37,6 +37,10 @@ pub struct QuestLog {
     quests: Vec<Quest>,
     current: usize,
     progress: u32,
+    /// An optional endless quest that repeats once the chain is done, so there's
+    /// always a cosy goal. `loops` counts how many times it's been completed.
+    repeat: Option<Quest>,
+    loops: u32,
 }
 
 impl QuestLog {
@@ -45,12 +49,14 @@ impl QuestLog {
             quests,
             current: 0,
             progress: 0,
+            repeat: None,
+            loops: 0,
         }
     }
 
     /// The cosy starter chain.
     pub fn cosy_chain() -> Self {
-        Self::new(vec![
+        let mut log = Self::new(vec![
             Quest {
                 title: "GATHER WILDFLOWERS",
                 objective: Objective::Collect(vec![blocks::FLOWER_PINK, blocks::FLOWER_BLUE]),
@@ -81,16 +87,24 @@ impl QuestLog {
                 target: 4,
                 reward: vec![(blocks::CRYSTAL, 4)],
             },
-        ])
+        ]);
+        // After the chain, an endless "tend the valley" goal keeps things cosy.
+        log.repeat = Some(Quest {
+            title: "TEND THE VALLEY",
+            objective: Objective::Place(vec![blocks::PLANK, blocks::LANTERN, blocks::GLASS]),
+            target: 24,
+            reward: vec![(blocks::LANTERN, 2), (blocks::CRYSTAL, 1)],
+        });
+        log
     }
 
-    /// The quest currently in progress, if any remain.
+    /// The quest currently in progress (a chain quest, or the endless one).
     pub fn current(&self) -> Option<&Quest> {
-        self.quests.get(self.current)
+        self.quests.get(self.current).or(self.repeat.as_ref())
     }
 
     pub fn is_complete(&self) -> bool {
-        self.current >= self.quests.len()
+        self.current >= self.quests.len() && self.repeat.is_none()
     }
 
     pub fn completed_count(&self) -> usize {
@@ -138,18 +152,29 @@ impl QuestLog {
     }
 
     fn advance_progress(&mut self, by: u32) -> Vec<(BlockId, u32)> {
-        let Some(quest) = self.quests.get(self.current) else {
+        let on_chain = self.current < self.quests.len();
+        let Some(quest) = self.current() else {
             return Vec::new();
         };
+        let (target, reward) = (quest.target, quest.reward.clone());
         self.progress += by;
-        if self.progress >= quest.target {
-            let reward = quest.reward.clone();
-            self.current += 1;
+        if self.progress >= target {
             self.progress = 0;
+            if on_chain {
+                self.current += 1;
+            } else {
+                // Endless quest looped — keep a tally for flavour.
+                self.loops += 1;
+            }
             reward
         } else {
             Vec::new()
         }
+    }
+
+    /// How many times the endless quest has been completed.
+    pub fn loops(&self) -> u32 {
+        self.loops
     }
 }
 
@@ -174,6 +199,24 @@ mod tests {
         assert_eq!(r, vec![(blocks::PLANK, 16)]);
         assert_eq!(log.completed_count(), 1);
         assert_eq!(log.current().unwrap().title, "PICK SWEET BERRIES");
+    }
+
+    #[test]
+    fn cosy_chain_loops_endlessly_after_completion() {
+        let mut log = QuestLog::cosy_chain();
+        // Blast through the whole chain.
+        for _ in 0..200 {
+            log.on_collect(blocks::FLOWER_PINK, 1);
+            log.on_collect(blocks::BERRY_BUSH, 1);
+            log.on_collect(blocks::TRUNK, 1);
+            log.on_place(blocks::PLANK);
+            log.on_place(blocks::LANTERN);
+        }
+        // Never "complete" — the endless tend-the-valley quest is always active.
+        assert!(!log.is_complete());
+        let (title, _) = log.hud().expect("an objective is always shown");
+        assert_eq!(title, "TEND THE VALLEY");
+        assert!(log.loops() > 0, "endless quest should have looped");
     }
 
     #[test]
