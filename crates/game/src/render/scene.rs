@@ -58,6 +58,8 @@ pub struct GpuScene {
     chunks: AHashMap<ChunkPos, GpuChunk>,
     /// Dynamic geometry for ambient critters, rebuilt each frame.
     entities: Option<GpuLayer>,
+    ui_pipeline: wgpu::RenderPipeline,
+    ui_buffer: Option<(wgpu::Buffer, u32)>,
     pub render_distance: f32,
 }
 
@@ -103,6 +105,7 @@ impl GpuScene {
         });
         let opaque_pipeline = make_pipeline(&device, &layout, &shader, format, false);
         let transparent_pipeline = make_pipeline(&device, &layout, &shader, format, true);
+        let ui_pipeline = make_ui_pipeline(&device, format);
 
         Self {
             device,
@@ -111,10 +114,28 @@ impl GpuScene {
             globals_bind_group,
             opaque_pipeline,
             transparent_pipeline,
+            ui_pipeline,
+            ui_buffer: None,
             chunks: AHashMap::new(),
             entities: None,
             render_distance: 16.0 * CHUNK_EDGE,
         }
+    }
+
+    /// Replace the HUD overlay geometry for this frame.
+    pub fn upload_ui(&mut self, verts: &[super::ui::UiVertex]) {
+        if verts.is_empty() {
+            self.ui_buffer = None;
+            return;
+        }
+        let buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("ui-vertices"),
+                contents: bytemuck::cast_slice(verts),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.ui_buffer = Some((buffer, verts.len() as u32));
     }
 
     /// Replace the per-frame entity geometry (world-space vertices).
@@ -278,6 +299,13 @@ impl GpuScene {
                 }
             }
         }
+
+        // HUD overlay last, on top of everything (depth-independent).
+        if let Some((buf, count)) = &self.ui_buffer {
+            pass.set_pipeline(&self.ui_pipeline);
+            pass.set_vertex_buffer(0, buf.slice(..));
+            pass.draw(0..*count, 0..1);
+        }
     }
 }
 
@@ -379,6 +407,73 @@ fn make_pipeline(
             format: DEPTH_FORMAT,
             depth_write_enabled: !transparent,
             depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+        cache: None,
+    })
+}
+
+/// Pipeline for the flat 2D HUD overlay: alpha-blended coloured quads in NDC,
+/// always drawn on top (depth test Always, no depth write).
+fn make_ui_pipeline(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("ui-shader"),
+        source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()),
+    });
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("ui-layout"),
+        bind_group_layouts: &[],
+        push_constant_ranges: &[],
+    });
+    let vertex_layout = wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<super::ui::UiVertex>() as u64,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+            wgpu::VertexAttribute {
+                offset: 8,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+        ],
+    };
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("ui-pipeline"),
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[vertex_layout],
+            compilation_options: Default::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),

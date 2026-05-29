@@ -87,6 +87,16 @@ impl Renderer {
         self.scene.upload_entities(&v, &i);
     }
 
+    /// Rebuild the HUD overlay (crosshair + hotbar) for the current inventory.
+    pub fn update_hud(
+        &mut self,
+        inventory: &crate::inventory::Inventory,
+        registry: &pixelcraft_core::block::BlockRegistry,
+    ) {
+        let verts = super::ui::build_hud(self.config.width, self.config.height, inventory, registry);
+        self.scene.upload_ui(&verts);
+    }
+
     pub fn render(&mut self, camera: &Camera, env: &Environment) -> Result<(), wgpu::SurfaceError> {
         let frame = self.surface.get_current_texture()?;
         let view = frame

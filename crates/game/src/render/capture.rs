@@ -100,6 +100,16 @@ impl Headless {
         self.scene.upload_entities(&v, &i);
     }
 
+    /// Rebuild the HUD overlay (crosshair + hotbar) for the current inventory.
+    pub fn update_hud(
+        &mut self,
+        inventory: &crate::inventory::Inventory,
+        registry: &pixelcraft_core::block::BlockRegistry,
+    ) {
+        let verts = super::ui::build_hud(self.width, self.height, inventory, registry);
+        self.scene.upload_ui(&verts);
+    }
+
     /// Render one frame and save it as a PNG at `path`.
     pub fn capture(&self, camera: &Camera, env: &Environment, path: impl AsRef<Path>) {
         self.scene.update_globals(camera, env);

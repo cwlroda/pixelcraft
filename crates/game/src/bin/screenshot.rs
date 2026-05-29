@@ -66,9 +66,15 @@ fn main() {
 
     println!("Initialising offscreen renderer (lavapipe)…");
     let mut renderer = Headless::new(WIDTH, HEIGHT);
+    // Give the cat a few starter blocks so the hotbar shows nicely.
+    for &id in &pixelcraft_game::HOTBAR {
+        game.inventory.add(id, 24);
+    }
+
     renderer.set_render_distance(render_distance);
     renderer.sync_meshes(&game.manager);
     renderer.update_entities(&game.entities);
+    renderer.update_hud(&game.inventory, &game.manager.registry);
     println!(
         "GPU chunk meshes: {} | critters: {}",
         renderer.gpu_chunk_count(),
