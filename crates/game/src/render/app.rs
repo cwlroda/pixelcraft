@@ -274,6 +274,7 @@ impl State {
                 .or_else(|| Some("ALL QUESTS DONE - ENJOY!".to_string())),
             objective_progress: quest.as_ref().map(|(_, p)| *p),
             dialogue: self.game.active_dialogue.clone(),
+            weather: Some(self.game.weather.label().to_string()),
         };
         self.renderer.update_hud(&hud);
 

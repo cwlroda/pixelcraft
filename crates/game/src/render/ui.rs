@@ -85,6 +85,8 @@ pub struct HudState<'a> {
     pub objective_progress: Option<(u32, u32)>,
     /// Active NPC dialogue (speaker, line).
     pub dialogue: Option<(String, String)>,
+    /// Short weather label (e.g. "RAIN").
+    pub weather: Option<String>,
 }
 
 /// Build the full HUD for the current frame.
@@ -110,7 +112,12 @@ pub fn build_hud(screen_w: u32, screen_h: u32, state: &HudState) -> Vec<UiVertex
     let mm = ((hours_f - hh as f32) * 60.0) as u32;
     let clock = format!("{hh:02}:{mm:02}");
     let tag = if (6..20).contains(&hh) { "DAY" } else { "NIGHT" };
-    b.text_shadow(14.0, 14.0, 3.0, &format!("{tag} {clock}"), [1.0, 1.0, 1.0, 0.95]);
+    let mut top = format!("{tag} {clock}");
+    if let Some(w) = &state.weather {
+        top.push_str("  ");
+        top.push_str(w);
+    }
+    b.text_shadow(14.0, 14.0, 3.0, &top, [1.0, 1.0, 1.0, 0.95]);
 
     // --- Objective banner ------------------------------------------------
     if let Some(obj) = &state.objective {
@@ -196,6 +203,7 @@ mod tests {
             objective: Some("COLLECT BERRIES".to_string()),
             objective_progress: Some((2, 5)),
             dialogue: Some(("MITTENS".to_string(), "HELLO THERE!".to_string())),
+            weather: Some("RAIN".to_string()),
         };
         let verts = build_hud(1280, 720, &state);
         assert!(!verts.is_empty());

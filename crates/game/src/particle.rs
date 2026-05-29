@@ -69,6 +69,50 @@ impl ParticleSystem {
         }
     }
 
+    /// Emit weather precipitation around the player: drifting snow or quick
+    /// rain streaks falling from above.
+    pub fn emit_weather(&mut self, around: Vec3, snow: bool, dt: f32) {
+        let rate = if snow { 26.0 } else { 60.0 };
+        let expected = rate * dt;
+        let mut n = expected as i32;
+        if self.rng.next_f32() < expected.fract() {
+            n += 1;
+        }
+        for _ in 0..n {
+            if self.particles.len() >= self.max {
+                break;
+            }
+            let r = 22.0;
+            let pos = around
+                + Vec3::new(
+                    (self.rng.next_f32() - 0.5) * r,
+                    8.0 + self.rng.next_f32() * 8.0,
+                    (self.rng.next_f32() - 0.5) * r,
+                );
+            if snow {
+                self.particles.push(Particle {
+                    pos,
+                    vel: Vec3::new(0.0, -1.1 - self.rng.next_f32() * 0.5, 0.0),
+                    life: 0.0,
+                    max_life: 5.0 + self.rng.next_f32() * 2.0,
+                    size: 0.08,
+                    color: Color::rgb(245, 248, 255),
+                    flutter: 1.0 + self.rng.next_f32(),
+                });
+            } else {
+                self.particles.push(Particle {
+                    pos,
+                    vel: Vec3::new(0.0, -16.0 - self.rng.next_f32() * 4.0, 0.0),
+                    life: 0.0,
+                    max_life: 1.2,
+                    size: 0.05,
+                    color: Color::rgb(170, 190, 220),
+                    flutter: 0.0,
+                });
+            }
+        }
+    }
+
     /// A small debris burst (e.g. when a block is broken).
     pub fn burst(&mut self, at: Vec3, color: Color, count: u32) {
         for _ in 0..count {

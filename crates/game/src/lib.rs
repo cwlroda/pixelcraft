@@ -31,6 +31,40 @@ pub use streaming::{ChunkManager, StreamConfig, StreamStats};
 use glam::Vec3;
 use pixelcraft_physics::{MovementInput, Player, SolidQuery};
 
+/// Current weather. Snowy peaks always snow; elsewhere it's mostly clear with
+/// occasional gentle rain.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Weather {
+    Clear,
+    Rain,
+    Snow,
+}
+
+impl Weather {
+    pub fn label(self) -> &'static str {
+        match self {
+            Weather::Clear => "CLEAR",
+            Weather::Rain => "RAIN",
+            Weather::Snow => "SNOW",
+        }
+    }
+}
+
+/// Decide the weather for a moment in time at a biome. Rain comes in slow
+/// ~45-second spells; cold peaks always snow.
+fn weather_at(time: f32, biome: pixelcraft_worldgen::Biome) -> Weather {
+    if biome == pixelcraft_worldgen::Biome::SnowyPeaks {
+        return Weather::Snow;
+    }
+    let period = (time / 45.0).max(0.0) as u64;
+    // ~25% of spells are rainy.
+    if pixelcraft_worldgen::SplitMix64::new(period ^ 0xBEEF_CAFE).next_f32() < 0.25 {
+        Weather::Rain
+    } else {
+        Weather::Clear
+    }
+}
+
 /// A complete, render-agnostic game session: the streamed world, the cat, its
 /// inventory, ambient critters and the day/night environment. The renderer
 /// drives this each frame and reads back what it needs to draw.
@@ -42,6 +76,7 @@ pub struct Game {
     pub environment: Environment,
     pub quests: QuestLog,
     pub particles: particle::ParticleSystem,
+    pub weather: Weather,
     /// Active NPC dialogue (speaker, line), shown for a few seconds.
     pub active_dialogue: Option<(String, String)>,
     dialogue_timer: f32,
@@ -66,6 +101,7 @@ impl Game {
             environment: Environment::default(),
             quests: QuestLog::cosy_chain(),
             particles: particle::ParticleSystem::new(seed),
+            weather: Weather::Clear,
             active_dialogue: None,
             dialogue_timer: 0.0,
             time: 0.0,
@@ -140,12 +176,18 @@ impl Game {
             &self.manager,
             self.environment.daylight(),
         );
-        // Cherry-blossom petals drift down when standing in a cherry grove.
-        if self.manager.biome_at(
+        // Weather + cherry-blossom petals, by biome.
+        let biome = self.manager.biome_at(
             self.player.position.x.floor() as i32,
             self.player.position.z.floor() as i32,
-        ) == pixelcraft_worldgen::Biome::CherryGrove
-        {
+        );
+        self.weather = weather_at(self.time, biome);
+        match self.weather {
+            Weather::Snow => self.particles.emit_weather(self.player.position, true, dt),
+            Weather::Rain => self.particles.emit_weather(self.player.position, false, dt),
+            Weather::Clear => {}
+        }
+        if biome == pixelcraft_worldgen::Biome::CherryGrove {
             self.particles.emit_petals(self.player.position, dt);
         }
         self.particles.update(dt);

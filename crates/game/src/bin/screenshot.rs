@@ -83,6 +83,7 @@ fn main() {
         objective: quest.as_ref().map(|(t, _)| t.clone()),
         objective_progress: quest.as_ref().map(|(_, p)| *p),
         dialogue: None,
+        weather: Some(game.weather.label().to_string()),
     };
     renderer.update_hud(&hud);
     println!(
@@ -237,6 +238,7 @@ fn main() {
             objective: None,
             objective_progress: None,
             dialogue: Some((name, line)),
+            weather: None,
         };
         renderer.update_hud(&hud);
         let path = format!("{out_dir}/11_friend.png");
@@ -302,11 +304,39 @@ fn main() {
             objective: game.quests.hud().map(|(t, _)| t),
             objective_progress: game.quests.hud().map(|(_, p)| p),
             dialogue: None,
+            weather: None,
         };
         renderer.update_hud(&hud);
         let path = format!("{out_dir}/12_hero.png");
         renderer.capture(&camera, &env, &path);
         renderer.update_player_model(None);
+        println!("  wrote {path}");
+    }
+
+    // A rainy-day shot at eye level.
+    {
+        game.weather = pixelcraft_game::Weather::Rain;
+        for _ in 0..60 {
+            game.particles.emit_weather(ground, false, 0.03);
+            game.particles.update(0.03);
+        }
+        renderer.update_particles(&game.particles);
+        let eye = ground + Vec3::new(0.0, 1.5, 0.0);
+        let camera = Camera::new(eye, look_dir(0.6, -0.05), aspect);
+        let env = Environment { time_of_day: 0.28, day_length: 600.0 };
+        let quest = game.quests.hud();
+        let hud = pixelcraft_game::render::HudState {
+            inventory: &game.inventory,
+            registry: &game.manager.registry,
+            time_of_day: 0.28,
+            objective: quest.as_ref().map(|(t, _)| t.clone()),
+            objective_progress: quest.as_ref().map(|(_, p)| *p),
+            dialogue: None,
+            weather: Some("RAIN".to_string()),
+        };
+        renderer.update_hud(&hud);
+        let path = format!("{out_dir}/13_rain.png");
+        renderer.capture(&camera, &env, &path);
         println!("  wrote {path}");
     }
 
