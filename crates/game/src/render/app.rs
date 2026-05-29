@@ -229,8 +229,14 @@ impl State {
         // Push fresh/edited chunk meshes and the ambient critters to the GPU.
         self.renderer.sync_meshes(&self.game.manager);
         self.renderer.update_entities(&self.game.entities);
-        self.renderer
-            .update_hud(&self.game.inventory, &self.game.manager.registry);
+        let hud = super::HudState {
+            inventory: &self.game.inventory,
+            registry: &self.game.manager.registry,
+            time_of_day: self.game.environment.time_of_day,
+            objective: None,
+            objective_progress: None,
+        };
+        self.renderer.update_hud(&hud);
 
         // Camera follows the eye.
         let camera = Camera::new(eye, look, self.renderer.aspect());

@@ -74,7 +74,14 @@ fn main() {
     renderer.set_render_distance(render_distance);
     renderer.sync_meshes(&game.manager);
     renderer.update_entities(&game.entities);
-    renderer.update_hud(&game.inventory, &game.manager.registry);
+    let hud = pixelcraft_game::render::HudState {
+        inventory: &game.inventory,
+        registry: &game.manager.registry,
+        time_of_day: 0.12,
+        objective: Some("EXPLORE THE COSY VALLEY".to_string()),
+        objective_progress: None,
+    };
+    renderer.update_hud(&hud);
     println!(
         "GPU chunk meshes: {} | critters: {}",
         renderer.gpu_chunk_count(),

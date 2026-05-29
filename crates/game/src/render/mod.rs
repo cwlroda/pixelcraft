@@ -6,10 +6,12 @@
 //! * The headless capturer (`capture` feature) renders offscreen to a PNG,
 //!   used to screenshot the game in environments without a display.
 
+mod font;
 mod scene;
 mod textures;
 mod ui;
 pub use scene::CHUNK_EDGE;
+pub use ui::HudState;
 
 #[cfg(feature = "render")]
 mod app;

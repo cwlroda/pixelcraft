@@ -87,13 +87,9 @@ impl Renderer {
         self.scene.upload_entities(&v, &i);
     }
 
-    /// Rebuild the HUD overlay (crosshair + hotbar) for the current inventory.
-    pub fn update_hud(
-        &mut self,
-        inventory: &crate::inventory::Inventory,
-        registry: &pixelcraft_core::block::BlockRegistry,
-    ) {
-        let verts = super::ui::build_hud(self.config.width, self.config.height, inventory, registry);
+    /// Rebuild the HUD overlay for the current frame.
+    pub fn update_hud(&mut self, state: &super::ui::HudState) {
+        let verts = super::ui::build_hud(self.config.width, self.config.height, state);
         self.scene.upload_ui(&verts);
     }
 
