@@ -5,6 +5,7 @@
 //! the binary (`main.rs`) and consumes these systems.
 
 pub mod camera;
+pub mod entity;
 pub mod environment;
 pub mod interaction;
 pub mod inventory;
@@ -16,6 +17,7 @@ pub mod streaming;
 pub mod render;
 
 pub use camera::{Camera, Frustum};
+pub use entity::{EntityConfig, EntityKind, EntityManager};
 pub use environment::Environment;
 pub use interaction::{mine, place, target, Interaction, REACH};
 pub use inventory::{Inventory, HOTBAR};
@@ -25,14 +27,16 @@ pub use streaming::{ChunkManager, StreamConfig, StreamStats};
 use glam::Vec3;
 use pixelcraft_physics::{MovementInput, Player, SolidQuery};
 
-/// A complete, render-agnostic game session: the streamed world, the cat, and
-/// its inventory. The renderer drives this each frame and reads back what it
-/// needs to draw.
+/// A complete, render-agnostic game session: the streamed world, the cat, its
+/// inventory, ambient critters and the day/night environment. The renderer
+/// drives this each frame and reads back what it needs to draw.
 pub struct Game {
     pub manager: ChunkManager,
     pub player: Player,
     pub inventory: Inventory,
-    /// Seconds of accumulated simulation time, for animation/day-night later.
+    pub entities: EntityManager,
+    pub environment: Environment,
+    /// Seconds of accumulated simulation time.
     pub time: f32,
 }
 
@@ -49,6 +53,8 @@ impl Game {
             manager,
             player,
             inventory,
+            entities: EntityManager::new(seed, EntityConfig::default()),
+            environment: Environment::default(),
             time: 0.0,
         }
     }
@@ -56,6 +62,7 @@ impl Game {
     /// Step the whole game forward by `dt` seconds with the given input.
     pub fn update(&mut self, input: MovementInput, dt: f32) {
         self.time += dt;
+        self.environment.advance(dt);
         // Stream chunks around the player first so the ground exists before we
         // simulate physics against it.
         self.manager.update(self.player.position);
@@ -64,6 +71,13 @@ impl Game {
             registry: &self.manager.registry,
         };
         self.player.update(input, dt, &solid);
+        // Ambient critters spawn/wander around the player.
+        self.entities.update(
+            dt,
+            self.player.position,
+            &self.manager,
+            self.environment.daylight(),
+        );
     }
 
     /// Is the spawn area fully streamed in (so the player won't fall through

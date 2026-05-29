@@ -50,6 +50,11 @@ fn main() {
         }
     }
 
+    // Let ambient critters populate and wander a little before the photo shoot.
+    for _ in 0..220 {
+        game.update(MovementInput::default(), dt);
+    }
+
     let stats = game.manager.stats();
     println!(
         "Loaded {} chunks, {} meshed, voxel memory {} KiB. Cat at {:?}.",
@@ -63,7 +68,12 @@ fn main() {
     let mut renderer = Headless::new(WIDTH, HEIGHT);
     renderer.set_render_distance(render_distance);
     renderer.sync_meshes(&game.manager);
-    println!("GPU chunk meshes: {}", renderer.gpu_chunk_count());
+    renderer.update_entities(&game.entities);
+    println!(
+        "GPU chunk meshes: {} | critters: {}",
+        renderer.gpu_chunk_count(),
+        game.entities.count()
+    );
 
     let ground = game.player.position;
     let aspect = renderer.aspect();
@@ -133,6 +143,31 @@ fn main() {
         println!("  wrote {path} (cottage at {cottage:?})");
     } else {
         println!("  (no cottage found near spawn this run)");
+    }
+
+    // A critter close-up: frame the nearest ground critter to the cat.
+    if let Some(critter) = game
+        .entities
+        .entities
+        .iter()
+        .filter(|e| e.kind == pixelcraft_game::EntityKind::Critter)
+        .min_by(|a, b| {
+            a.position
+                .distance_squared(ground)
+                .total_cmp(&b.position.distance_squared(ground))
+        })
+        .map(|e| e.position)
+    {
+        let eye = critter + Vec3::new(2.2, 1.1, 2.2);
+        let forward = (critter + Vec3::new(0.0, 0.3, 0.0) - eye).normalize();
+        let env = Environment {
+            time_of_day: 0.16,
+            day_length: 600.0,
+        };
+        let camera = Camera::new(eye, forward, aspect);
+        let path = format!("{out_dir}/07_critter.png");
+        renderer.capture(&camera, &env, &path);
+        println!("  wrote {path}");
     }
 
     println!("Done. Screenshots in '{out_dir}/'.");

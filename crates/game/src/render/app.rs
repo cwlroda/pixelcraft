@@ -15,7 +15,6 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 
 use super::{Renderer, CHUNK_EDGE};
 use crate::camera::Camera;
-use crate::environment::Environment;
 use crate::interaction;
 use crate::{Game, StreamConfig};
 use pixelcraft_physics::MovementInput;
@@ -43,7 +42,6 @@ struct State {
     window: Arc<Window>,
     renderer: Renderer,
     game: Game,
-    env: Environment,
     keys: AHashSet<KeyCode>,
     last_frame: Instant,
     mouse_grabbed: bool,
@@ -78,7 +76,6 @@ impl ApplicationHandler for App {
             window,
             renderer,
             game,
-            env: Environment::default(),
             keys: AHashSet::new(),
             last_frame: Instant::now(),
             mouse_grabbed,
@@ -188,8 +185,6 @@ impl State {
         let dt = (now - self.last_frame).as_secs_f32().min(0.1);
         self.last_frame = now;
 
-        self.env.advance(dt);
-
         // Build movement intent from the keyboard relative to the look yaw.
         let (forward, right) = self.game.player.horizontal_basis();
         let mut wish = Vec3::ZERO;
@@ -231,13 +226,14 @@ impl State {
             );
         }
 
-        // Push fresh/edited chunk meshes to the GPU.
+        // Push fresh/edited chunk meshes and the ambient critters to the GPU.
         self.renderer.sync_meshes(&self.game.manager);
+        self.renderer.update_entities(&self.game.entities);
 
         // Camera follows the eye.
         let camera = Camera::new(eye, look, self.renderer.aspect());
 
-        match self.renderer.render(&camera, &self.env) {
+        match self.renderer.render(&camera, &self.game.environment) {
             Ok(()) => {}
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                 let size = self.window.inner_size();

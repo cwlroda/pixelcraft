@@ -82,6 +82,11 @@ impl Renderer {
         self.scene.sync_meshes(manager);
     }
 
+    pub fn update_entities(&mut self, em: &crate::entity::EntityManager) {
+        let (v, i) = em.build_geometry();
+        self.scene.upload_entities(&v, &i);
+    }
+
     pub fn render(&mut self, camera: &Camera, env: &Environment) -> Result<(), wgpu::SurfaceError> {
         let frame = self.surface.get_current_texture()?;
         let view = frame

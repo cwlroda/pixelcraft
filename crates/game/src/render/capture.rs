@@ -95,6 +95,11 @@ impl Headless {
         self.scene.sync_meshes(manager);
     }
 
+    pub fn update_entities(&mut self, em: &crate::entity::EntityManager) {
+        let (v, i) = em.build_geometry();
+        self.scene.upload_entities(&v, &i);
+    }
+
     /// Render one frame and save it as a PNG at `path`.
     pub fn capture(&self, camera: &Camera, env: &Environment, path: impl AsRef<Path>) {
         self.scene.update_globals(camera, env);

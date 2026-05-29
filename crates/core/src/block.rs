@@ -24,7 +24,7 @@ impl BlockId {
 }
 
 /// How light and rendering treat a block.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RenderKind {
     /// Nothing is drawn (air).
     Invisible,
@@ -37,7 +37,9 @@ pub enum RenderKind {
     Fluid,
     /// A small plant drawn as two crossed quads (flowers, grass, mushrooms)
     /// rather than a full cube — avoids the "solid haze" of cube-shaped flora.
-    Cross,
+    /// `width` and `height` size the billboard within its voxel (0..1) so a
+    /// flower can be a small bloom while tall grass nearly fills the cell.
+    Cross { width: f32, height: f32 },
 }
 
 /// Linear RGB-ish colour used for vertex tinting before textures land.
@@ -98,7 +100,7 @@ impl Block {
     /// A crossed-quad plant rather than a cube.
     #[inline]
     pub fn is_cross(&self) -> bool {
-        matches!(self.render, RenderKind::Cross)
+        matches!(self.render, RenderKind::Cross { .. })
     }
 
     /// A full-cube visible block (opaque, transparent or fluid) — i.e. anything
@@ -231,7 +233,7 @@ impl BlockRegistry {
         // 9: pink flower
         r.register(Block {
             name: "flower_pink",
-            render: Cross,
+            render: Cross { width: 0.5, height: 0.6 },
             solid: false,
             color: Color::rgb(244, 162, 196),
             light_emission: 0,
@@ -240,7 +242,7 @@ impl BlockRegistry {
         // 10: blue flower
         r.register(Block {
             name: "flower_blue",
-            render: Cross,
+            render: Cross { width: 0.5, height: 0.6 },
             solid: false,
             color: Color::rgb(150, 180, 240),
             light_emission: 0,
@@ -260,7 +262,7 @@ impl BlockRegistry {
         // 13: mushroom — toadstool red
         r.register(Block {
             name: "mushroom",
-            render: Cross,
+            render: Cross { width: 0.45, height: 0.4 },
             solid: false,
             color: Color::rgb(214, 96, 96),
             light_emission: 2,
@@ -293,7 +295,7 @@ impl BlockRegistry {
         // 19: tall grass — wispy ground cover, non-solid
         r.register(Block {
             name: "tall_grass",
-            render: Cross,
+            render: Cross { width: 0.85, height: 0.9 },
             solid: false,
             color: Color::rgb(120, 196, 104),
             light_emission: 0,
@@ -302,7 +304,7 @@ impl BlockRegistry {
         // 20: berry bush — collectible snack, reddish-green
         r.register(Block {
             name: "berry_bush",
-            render: Cross,
+            render: Cross { width: 0.8, height: 0.7 },
             solid: false,
             color: Color::rgb(176, 96, 110),
             light_emission: 0,

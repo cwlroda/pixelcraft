@@ -151,9 +151,10 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
             for x in 0..N {
                 let id = sampler.block_at(x, y, z);
                 let block = registry.get(id);
-                if !block.is_cross() {
+                let pixelcraft_core::block::RenderKind::Cross { width, height } = block.render
+                else {
                     continue;
-                }
+                };
                 let c = block.color;
                 let color = [
                     c.r as f32 / 255.0,
@@ -162,8 +163,10 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
                     c.a as f32 / 255.0,
                 ];
                 let colors = [color; 4];
-                // Inset slightly so plants don't visually merge with neighbours.
-                let (lo, hi) = (0.08, 0.92);
+                // Centre the billboard in the cell, sized per plant kind.
+                let half = (width.clamp(0.1, 1.0)) * 0.5;
+                let (lo, hi) = (0.5 - half, 0.5 + half);
+                let top = height.clamp(0.1, 1.0);
                 let (fx, fy, fz) = (x as f32, y as f32, z as f32);
                 // Upward normal so plants read as bright and sky-lit.
                 let normal = [0.0, 1.0, 0.0];
@@ -172,8 +175,8 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
                     [
                         [fx + lo, fy, fz + lo],
                         [fx + hi, fy, fz + hi],
-                        [fx + hi, fy + 1.0, fz + hi],
-                        [fx + lo, fy + 1.0, fz + lo],
+                        [fx + hi, fy + top, fz + hi],
+                        [fx + lo, fy + top, fz + lo],
                     ],
                     colors,
                     normal,
@@ -185,8 +188,8 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
                     [
                         [fx + hi, fy, fz + lo],
                         [fx + lo, fy, fz + hi],
-                        [fx + lo, fy + 1.0, fz + hi],
-                        [fx + hi, fy + 1.0, fz + lo],
+                        [fx + lo, fy + top, fz + hi],
+                        [fx + hi, fy + top, fz + lo],
                     ],
                     colors,
                     normal,

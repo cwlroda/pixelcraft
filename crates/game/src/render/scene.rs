@@ -56,6 +56,8 @@ pub struct GpuScene {
     opaque_pipeline: wgpu::RenderPipeline,
     transparent_pipeline: wgpu::RenderPipeline,
     chunks: AHashMap<ChunkPos, GpuChunk>,
+    /// Dynamic geometry for ambient critters, rebuilt each frame.
+    entities: Option<GpuLayer>,
     pub render_distance: f32,
 }
 
@@ -110,8 +112,14 @@ impl GpuScene {
             opaque_pipeline,
             transparent_pipeline,
             chunks: AHashMap::new(),
+            entities: None,
             render_distance: 16.0 * CHUNK_EDGE,
         }
+    }
+
+    /// Replace the per-frame entity geometry (world-space vertices).
+    pub fn upload_entities(&mut self, verts: &[Vertex], indices: &[u32]) {
+        self.entities = self.upload_layer(verts, indices, Vec3::ZERO);
     }
 
     pub fn gpu_chunk_count(&self) -> usize {
@@ -255,6 +263,10 @@ impl GpuScene {
                     draw_layer(&mut pass, layer);
                 }
             }
+        }
+        // Ambient critters are opaque; draw them in the same pass.
+        if let Some(layer) = &self.entities {
+            draw_layer(&mut pass, layer);
         }
 
         pass.set_pipeline(&self.transparent_pipeline);
