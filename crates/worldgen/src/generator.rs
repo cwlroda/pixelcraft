@@ -404,15 +404,23 @@ impl WorldGenerator {
         leaf: BlockId,
         rng: &mut SplitMix64,
     ) {
-        let trunk_h = 4 + (rng.next_u64() % 3) as i32; // 4..6
+        // One in eight is a grand old tree: taller trunk and a broader canopy.
+        let grand = rng.next_f32() < 0.12;
+        let trunk_h = if grand {
+            7 + (rng.next_u64() % 3) as i32 // 7..9
+        } else {
+            4 + (rng.next_u64() % 3) as i32 // 4..6
+        };
         let base = surface + 1;
         for h in 0..trunk_h {
             self.stamp(storage, origin, wx, base + h, wz, blocks::TRUNK, true);
         }
         let top = base + trunk_h;
-        let r = 2;
-        for dy in -1..=2 {
-            let layer_r = if dy >= 2 { 1 } else { r };
+        let r = if grand { 3 } else { 2 };
+        let (lo, hi) = if grand { (-2, 3) } else { (-1, 2) };
+        for dy in lo..=hi {
+            // Taper the canopy toward the top for a rounded silhouette.
+            let layer_r = if dy >= hi - 1 { r - 1 } else { r };
             for dz in -layer_r..=layer_r {
                 for dx in -layer_r..=layer_r {
                     if dx * dx + dz * dz + (dy * dy) / 2 > layer_r * layer_r + 1 {
