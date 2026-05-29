@@ -391,6 +391,56 @@ fn main() {
         println!("  wrote {path}");
     }
 
+    // An underground shot: carve a small cavern around a crystal to show off the
+    // baked block lighting (crystal glow in the dark).
+    {
+        use pixelcraft_core::block::{blocks, BlockId};
+        use pixelcraft_core::coords::BlockPos;
+        // A solid spot well underground near spawn.
+        let cx = ground.x.floor() as i32 + 6;
+        let cz = ground.z.floor() as i32 + 6;
+        let cy = 24;
+        // Carve a rounded cavern.
+        for dx in -4..=4 {
+            for dy in -3..=3 {
+                for dz in -4..=4 {
+                    if dx * dx + dy * dy + dz * dz <= 16 {
+                        game.manager
+                            .set_block(BlockPos::new(cx + dx, cy + dy, cz + dz), BlockId::AIR);
+                    }
+                }
+            }
+        }
+        // A glowing crystal on the cavern floor.
+        let crystal = BlockPos::new(cx, cy - 2, cz);
+        game.manager.set_block(crystal, blocks::CRYSTAL);
+        for _ in 0..8 {
+            game.manager.update(ground);
+        }
+        renderer.sync_meshes(&game.manager);
+        renderer.update_highlight(None);
+        renderer.update_particles(&pixelcraft_game::particle::ParticleSystem::new(0));
+        let clean_hud = pixelcraft_game::render::HudState {
+            inventory: &game.inventory,
+            registry: &game.manager.registry,
+            time_of_day: 0.25,
+            objective: None,
+            objective_progress: None,
+            dialogue: None,
+            weather: None,
+            crafting: None,
+        };
+        renderer.update_hud(&clean_hud);
+        let center = Vec3::new(crystal.x as f32 + 0.5, crystal.y as f32 + 0.5, crystal.z as f32 + 0.5);
+        let eye = center + Vec3::new(2.5, 1.2, 2.5);
+        let forward = (center - eye).normalize();
+        let env = Environment { time_of_day: 0.25, day_length: 600.0 };
+        let camera = Camera::new(eye, forward, aspect);
+        let path = format!("{out_dir}/16_cave.png");
+        renderer.capture(&camera, &env, &path);
+        println!("  wrote {path} (crystal at {crystal:?})");
+    }
+
     // A day→night→day timelapse GIF over the valley.
     make_timelapse(&game, ground, &out_dir);
 

@@ -30,6 +30,67 @@ pub struct Vertex {
     pub color: [f32; 4],
     pub uv: [f32; 2],
     pub layer: u32,
+    /// Baked lighting, `[sky, block]` in `0..1`. The shader scales sky light by
+    /// the current daylight and takes the max with block light, so lanterns
+    /// stand out at night while open ground tracks the sun.
+    pub light: [f32; 2],
+}
+
+/// Baked per-cell light for a chunk and its one-block border ring (so the
+/// mesher can read the light of the air cell each face opens onto). Stores sky
+/// and block light (0..15) for local coordinates in `-1..=CHUNK_SIZE`.
+#[derive(Clone)]
+pub struct ChunkLight {
+    sky: Vec<u8>,
+    block: Vec<u8>,
+}
+
+impl ChunkLight {
+    const DIM: i32 = CHUNK_SIZE as i32 + 2;
+
+    /// All cells fully sky-lit, no block light — the default for unlit meshing
+    /// and tests.
+    pub fn full_bright() -> Self {
+        let n = (Self::DIM * Self::DIM * Self::DIM) as usize;
+        Self {
+            sky: vec![15; n],
+            block: vec![0; n],
+        }
+    }
+
+    /// All cells dark (used as a base when baking).
+    pub fn dark() -> Self {
+        let n = (Self::DIM * Self::DIM * Self::DIM) as usize;
+        Self {
+            sky: vec![0; n],
+            block: vec![0; n],
+        }
+    }
+
+    #[inline]
+    fn index(x: i32, y: i32, z: i32) -> Option<usize> {
+        if x < -1 || y < -1 || z < -1 || x > CHUNK_SIZE as i32 || y > CHUNK_SIZE as i32 || z > CHUNK_SIZE as i32 {
+            return None;
+        }
+        Some(((x + 1) + (y + 1) * Self::DIM + (z + 1) * Self::DIM * Self::DIM) as usize)
+    }
+
+    /// Set the light at a local cell (`-1..=CHUNK_SIZE`).
+    pub fn set(&mut self, x: i32, y: i32, z: i32, sky: u8, block: u8) {
+        if let Some(i) = Self::index(x, y, z) {
+            self.sky[i] = sky;
+            self.block[i] = block;
+        }
+    }
+
+    /// Light `(sky, block)` at a local cell; out-of-range reads as full sky.
+    #[inline]
+    pub fn get(&self, x: i32, y: i32, z: i32) -> (u8, u8) {
+        match Self::index(x, y, z) {
+            Some(i) => (self.sky[i], self.block[i]),
+            None => (15, 0),
+        }
+    }
 }
 
 /// A single draw layer's geometry.
@@ -55,6 +116,7 @@ impl MeshBuffers {
         colors: [[f32; 4]; 4],
         uvs: [[f32; 2]; 4],
         layer: u32,
+        light: [f32; 2],
         normal: [f32; 3],
         reverse_winding: bool,
         flip_diagonal: bool,
@@ -67,6 +129,7 @@ impl MeshBuffers {
                 color,
                 uv,
                 layer,
+                light,
             });
         }
         // Choose the split diagonal (0–2 vs 1–3) for smooth AO interpolation.
@@ -126,6 +189,9 @@ struct FaceKey {
     /// Corner occlusion 0..3 (0 = darkest crevice, 3 = fully open), ordered
     /// `[(-u,-v), (+u,-v), (+u,+v), (-u,+v)]` to match emitted quad corners.
     ao: [u8; 4],
+    /// Baked `(sky, block)` light of the air cell this face opens onto, so
+    /// faces only merge where lighting is identical too.
+    light: (u8, u8),
 }
 
 /// Per-face directional shading for a soft, cosy look. Top faces are brightest,
@@ -143,20 +209,36 @@ fn face_shade(axis: usize, positive: bool) -> f32 {
 
 const N: i32 = CHUNK_SIZE as i32;
 
-/// Mesh a chunk. `sampler` resolves blocks (including one ring of neighbours)
-/// and `registry` supplies occlusion/visibility/colour.
+/// Mesh a chunk with full-bright lighting (no baked light). Convenience for
+/// tests and tools.
 pub fn mesh_chunk<S: BlockSampler>(sampler: &S, registry: &BlockRegistry) -> ChunkMesh {
+    mesh_chunk_lit(sampler, registry, &ChunkLight::full_bright())
+}
+
+/// Mesh a chunk. `sampler` resolves blocks (including one ring of neighbours),
+/// `registry` supplies occlusion/visibility/colour, and `light` provides baked
+/// per-cell sky/block light.
+pub fn mesh_chunk_lit<S: BlockSampler>(
+    sampler: &S,
+    registry: &BlockRegistry,
+    light: &ChunkLight,
+) -> ChunkMesh {
     let mut mesh = ChunkMesh::default();
-    greedy_pass(sampler, registry, Layer::Opaque, &mut mesh.opaque);
-    greedy_pass(sampler, registry, Layer::Transparent, &mut mesh.transparent);
-    cross_pass(sampler, registry, &mut mesh.transparent);
+    greedy_pass(sampler, registry, light, Layer::Opaque, &mut mesh.opaque);
+    greedy_pass(sampler, registry, light, Layer::Transparent, &mut mesh.transparent);
+    cross_pass(sampler, registry, light, &mut mesh.transparent);
     mesh
 }
 
 /// Emit crossed-quad geometry for small plants (flowers, grass, mushrooms).
 /// Each such voxel becomes two diagonal double-sided quads through the cell,
 /// giving a soft billboard look instead of a solid translucent cube.
-fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut MeshBuffers) {
+fn cross_pass<S: BlockSampler>(
+    sampler: &S,
+    registry: &BlockRegistry,
+    light: &ChunkLight,
+    out: &mut MeshBuffers,
+) {
     for y in 0..N {
         for z in 0..N {
             for x in 0..N {
@@ -170,6 +252,8 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
                 let alpha = block.color.a as f32 / 255.0;
                 let colors = [[1.0, 1.0, 1.0, alpha]; 4];
                 let layer = id.0 as u32;
+                let (sky, blk) = light.get(x, y, z);
+                let lv = [sky as f32 / 15.0, blk as f32 / 15.0];
                 // The plant tile maps once across each quad.
                 let uvs = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
                 // Centre the billboard in the cell, sized per plant kind.
@@ -190,6 +274,7 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
                     colors,
                     uvs,
                     layer,
+                    lv,
                     normal,
                     false,
                     false,
@@ -205,6 +290,7 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
                     colors,
                     uvs,
                     layer,
+                    lv,
                     normal,
                     false,
                     false,
@@ -217,6 +303,7 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
 fn greedy_pass<S: BlockSampler>(
     sampler: &S,
     registry: &BlockRegistry,
+    light: &ChunkLight,
     layer: Layer,
     out: &mut MeshBuffers,
 ) {
@@ -284,10 +371,15 @@ fn greedy_pass<S: BlockSampler>(
                         } else {
                             [3; 4]
                         };
+                        // Sample light from the air cell the face opens onto.
+                        let mut outer = lo;
+                        outer[d] = if positive { lo[d] + 1 } else { lo[d] };
+                        let light = light.get(outer[0], outer[1], outer[2]);
                         FaceKey {
                             block,
                             positive,
                             ao,
+                            light,
                         }
                     });
                     n += 1;
@@ -399,7 +491,8 @@ fn emit_quad(
     // interpolates smoothly instead of producing a hard diagonal seam.
     let flip_diagonal = key.ao[0] as i32 + key.ao[2] as i32 > key.ao[1] as i32 + key.ao[3] as i32;
 
-    out.push_quad([p0, p1, p2, p3], colors, uvs, layer, normal, !key.positive, flip_diagonal);
+    let lv = [key.light.0 as f32 / 15.0, key.light.1 as f32 / 15.0];
+    out.push_quad([p0, p1, p2, p3], colors, uvs, layer, lv, normal, !key.positive, flip_diagonal);
 }
 
 /// Compute four-corner ambient occlusion for a face. `lo` is the lower voxel's

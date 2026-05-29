@@ -10,6 +10,7 @@ pub mod entity;
 pub mod environment;
 pub mod interaction;
 pub mod inventory;
+pub mod light;
 pub mod particle;
 pub mod persistence;
 pub mod quest;

@@ -326,6 +326,7 @@ impl GpuScene {
                     color: v.color,
                     uv: v.uv,
                     layer: v.layer,
+                    light: v.light,
                 }
             })
             .collect();
@@ -359,7 +360,9 @@ impl GpuScene {
             view_proj: vp.to_cols_array_2d(),
             camera_pos: [camera.eye.x, camera.eye.y, camera.eye.z, self.render_distance],
             sun_dir: [sun.x, sun.y, sun.z, self.time],
-            sky_color: [sky.x, sky.y, sky.z, 1.0],
+            // .a carries the sky-light brightness used to combine baked sky vs
+            // block light (warm floor at night so it's never pitch black).
+            sky_color: [sky.x, sky.y, sky.z, 0.12 + 0.88 * env.daylight()],
             sun_color: [sun_c.x, sun_c.y, sun_c.z, env.ambient()],
             sky_zenith: [zenith.x, zenith.y, zenith.z, 1.0],
             inv_view_proj: vp.inverse().to_cols_array_2d(),
@@ -516,6 +519,12 @@ fn make_pipeline(
                 offset: 48,
                 shader_location: 4,
                 format: wgpu::VertexFormat::Uint32,
+            },
+            // baked light (sky, block)
+            wgpu::VertexAttribute {
+                offset: 52,
+                shader_location: 5,
+                format: wgpu::VertexFormat::Float32x2,
             },
         ],
     };
@@ -749,6 +758,7 @@ fn push_box(
                 color,
                 uv: [0.0, 0.0],
                 layer,
+                light: [1.0, 1.0],
             });
         }
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);

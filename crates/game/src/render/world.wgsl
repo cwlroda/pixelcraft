@@ -24,6 +24,7 @@ struct VsIn {
     @location(2) color : vec4<f32>,
     @location(3) uv : vec2<f32>,
     @location(4) layer : u32,
+    @location(5) light : vec2<f32>,
 };
 
 struct VsOut {
@@ -33,6 +34,7 @@ struct VsOut {
     @location(2) world_pos : vec3<f32>,
     @location(3) uv : vec2<f32>,
     @location(4) @interpolate(flat) layer : u32,
+    @location(5) light : vec2<f32>,
 };
 
 @vertex
@@ -59,6 +61,7 @@ fn vs_main(in : VsIn) -> VsOut {
     out.normal = in.normal;
     out.uv = in.uv;
     out.layer = in.layer;
+    out.light = in.light;
     return out;
 }
 
@@ -71,28 +74,28 @@ fn fs_main(in : VsOut) -> @location(0) vec4<f32> {
     let alpha = texel.a * in.color.a;
 
     let n = normalize(in.normal);
-    let sun = normalize(globals.sun_dir.xyz);
 
-    // Lambertian sun term, lifted by a soft ambient so shadowed faces stay
-    // readable and cosy rather than crushed to black.
-    let ambient = globals.sun_color.a;
-    let diffuse = max(dot(n, sun), 0.0);
-    let light = ambient + (1.0 - ambient) * diffuse;
+    // Baked voxel lighting: sky light scaled by the current daylight (so it
+    // dims at night), maxed with block (emitter) light which is constant. A
+    // small floor keeps shadows cosy rather than pitch black.
+    let sky_brightness = globals.sky_color.a;
+    let level = max(in.light.y, in.light.x * sky_brightness);
+    let lit_amount = 0.05 + 0.95 * level;
 
     // Emissive blocks (lanterns, crystals, mushrooms) self-illuminate so they
-    // glow warmly at night instead of dimming with the ambient.
+    // glow warmly regardless of surrounding light.
     var emissive = 0.0;
     if (in.layer == 12u) { emissive = 1.0; }       // lantern
     else if (in.layer == 18u) { emissive = 0.85; } // crystal
-    else if (in.layer == 13u) { emissive = 0.3; }  // mushroom
+    else if (in.layer == 13u) { emissive = 0.35; } // mushroom
 
-    let surface_light = max(light, emissive);
+    let surface_light = max(lit_amount, emissive);
     var lit = albedo * surface_light * globals.sun_color.rgb;
     // A little extra bloom of the block's own colour for emitters.
-    lit += albedo * emissive * 0.6;
+    lit += albedo * emissive * 0.5;
 
     // Gentle hemispherical sky bounce on upward faces for extra warmth.
-    let sky_bounce = clamp(n.y * 0.5 + 0.5, 0.0, 1.0) * 0.08;
+    let sky_bounce = clamp(n.y * 0.5 + 0.5, 0.0, 1.0) * 0.06 * sky_brightness;
     lit += globals.sky_color.rgb * sky_bounce;
 
     // Distance fog → sky colour.

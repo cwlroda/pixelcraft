@@ -414,6 +414,9 @@ fn append_box(
                 color: col,
                 uv: [0.0, 0.0],
                 layer,
+                // Critters are lit by daylight with a small floor so they stay
+                // visible at night.
+                light: [1.0, 0.25],
             });
         }
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);

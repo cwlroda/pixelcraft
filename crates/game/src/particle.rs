@@ -206,6 +206,8 @@ fn append_quad_cube(
                 color,
                 uv: [0.0, 0.0],
                 layer,
+                // Particles are self-lit so petals/rain/sparkles read day or night.
+                light: [1.0, 1.0],
             });
         }
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);

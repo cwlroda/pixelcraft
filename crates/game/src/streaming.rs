@@ -12,7 +12,7 @@ use pixelcraft_core::block::{BlockId, BlockRegistry};
 use pixelcraft_core::chunk::ChunkStorage;
 use pixelcraft_core::coords::{BlockPos, ChunkPos};
 use pixelcraft_core::world::World;
-use pixelcraft_mesh::{mesh_chunk, ChunkMesh};
+use pixelcraft_mesh::{mesh_chunk_lit, ChunkMesh};
 use pixelcraft_worldgen::WorldGenerator;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -368,7 +368,13 @@ impl ChunkManager {
         let registry: &BlockRegistry = &self.registry;
         let mesh_one = |pos: ChunkPos| -> Option<(ChunkPos, ChunkMesh)> {
             let sampler = ChunkNeighborSampler::new(world, pos)?;
-            Some((pos, mesh_chunk(&sampler, registry)))
+            // Bake lighting for this chunk from the surrounding world.
+            let light = crate::light::bake(
+                pos.origin(),
+                |bp| registry.get(world.block_at(bp)).occludes(),
+                |bp| registry.get(world.block_at(bp)).light_emission,
+            );
+            Some((pos, mesh_chunk_lit(&sampler, registry, &light)))
         };
 
         let results: Vec<(ChunkPos, ChunkMesh)> = if self.mesh_threads <= 1 || dirty.len() == 1 {
