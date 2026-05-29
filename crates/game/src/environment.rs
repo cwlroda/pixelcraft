@@ -55,6 +55,14 @@ impl Environment {
         night_c.lerp(day_c, day)
     }
 
+    /// Zenith (overhead) sky colour — deeper than the horizon for a gradient.
+    pub fn zenith_color(&self) -> Vec3 {
+        let day = self.daylight();
+        let day_zenith = Vec3::new(0.30, 0.55, 0.88);
+        let night_zenith = Vec3::new(0.02, 0.03, 0.09);
+        night_zenith.lerp(day_zenith, day)
+    }
+
     /// Horizon/fog colour blending dawn pink → day blue → dusk → night.
     pub fn sky_color(&self) -> Vec3 {
         let day = self.daylight();
@@ -108,6 +116,19 @@ mod tests {
         let noon = Environment { time_of_day: 0.25, day_length: 600.0 };
         let midnight = Environment { time_of_day: 0.75, day_length: 600.0 };
         assert!(noon.daylight() > midnight.daylight());
+    }
+
+    #[test]
+    fn zenith_is_darker_at_night_and_in_gamut() {
+        let noon = Environment { time_of_day: 0.25, day_length: 600.0 };
+        let midnight = Environment { time_of_day: 0.75, day_length: 600.0 };
+        assert!(noon.zenith_color().length() > midnight.zenith_color().length());
+        for e in [&noon, &midnight] {
+            let z = e.zenith_color();
+            for ch in [z.x, z.y, z.z] {
+                assert!((0.0..=1.0).contains(&ch));
+            }
+        }
     }
 
     #[test]

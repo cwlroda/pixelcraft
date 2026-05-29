@@ -29,6 +29,8 @@ struct Globals {
     sun_dir: [f32; 4],
     sky_color: [f32; 4],
     sun_color: [f32; 4],
+    sky_zenith: [f32; 4],
+    inv_view_proj: [[f32; 4]; 4],
 }
 
 /// A chunk's geometry resident on the GPU, one buffer set per draw layer.
@@ -53,6 +55,7 @@ pub struct GpuScene {
     pub queue: wgpu::Queue,
     globals_buffer: wgpu::Buffer,
     globals_bind_group: wgpu::BindGroup,
+    sky_pipeline: wgpu::RenderPipeline,
     opaque_pipeline: wgpu::RenderPipeline,
     transparent_pipeline: wgpu::RenderPipeline,
     chunks: AHashMap<ChunkPos, GpuChunk>,
@@ -186,12 +189,14 @@ impl GpuScene {
         let opaque_pipeline = make_pipeline(&device, &layout, &shader, format, false);
         let transparent_pipeline = make_pipeline(&device, &layout, &shader, format, true);
         let ui_pipeline = make_ui_pipeline(&device, format);
+        let sky_pipeline = make_sky_pipeline(&device, &layout, format);
 
         Self {
             device,
             queue,
             globals_buffer,
             globals_bind_group,
+            sky_pipeline,
             opaque_pipeline,
             transparent_pipeline,
             ui_pipeline,
@@ -314,14 +319,18 @@ impl GpuScene {
     /// Upload the per-frame globals from the camera and environment.
     pub fn update_globals(&self, camera: &Camera, env: &Environment) {
         let sky = env.sky_color();
+        let zenith = env.zenith_color();
         let sun = env.sun_dir();
         let sun_c = env.sun_color();
+        let vp = camera.view_projection();
         let globals = Globals {
-            view_proj: camera.view_projection().to_cols_array_2d(),
+            view_proj: vp.to_cols_array_2d(),
             camera_pos: [camera.eye.x, camera.eye.y, camera.eye.z, self.render_distance],
             sun_dir: [sun.x, sun.y, sun.z, 0.0],
             sky_color: [sky.x, sky.y, sky.z, 1.0],
             sun_color: [sun_c.x, sun_c.y, sun_c.z, env.ambient()],
+            sky_zenith: [zenith.x, zenith.y, zenith.z, 1.0],
+            inv_view_proj: vp.inverse().to_cols_array_2d(),
         };
         self.queue
             .write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&globals));
@@ -363,6 +372,11 @@ impl GpuScene {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+
+        // Sky backdrop first (fills the frame; depth left at the clear value).
+        pass.set_pipeline(&self.sky_pipeline);
+        pass.set_bind_group(0, &self.globals_bind_group, &[]);
+        pass.draw(0..3, 0..1);
 
         pass.set_pipeline(&self.opaque_pipeline);
         pass.set_bind_group(0, &self.globals_bind_group, &[]);
@@ -507,6 +521,53 @@ fn make_pipeline(
             format: DEPTH_FORMAT,
             depth_write_enabled: !transparent,
             depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+        cache: None,
+    })
+}
+
+/// Full-screen procedural sky pipeline. No vertex buffer (positions generated
+/// in the shader); depth test Always with no write so it sits behind the world.
+fn make_sky_pipeline(
+    device: &wgpu::Device,
+    layout: &wgpu::PipelineLayout,
+    format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("sky-shader"),
+        source: wgpu::ShaderSource::Wgsl(include_str!("sky.wgsl").into()),
+    });
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("sky-pipeline"),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[],
+            compilation_options: Default::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
