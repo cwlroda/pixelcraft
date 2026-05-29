@@ -187,12 +187,14 @@ impl EntityManager {
         })
     }
 
-    /// Build renderable cube geometry for all entities (world-space).
-    pub fn build_geometry(&self) -> (Vec<Vertex>, Vec<u32>) {
+    /// Build renderable cube geometry for all entities (world-space). Entities
+    /// are untextured, so they sample the solid `white_layer` tile and rely on
+    /// their baked vertex colour.
+    pub fn build_geometry(&self, white_layer: u32) -> (Vec<Vertex>, Vec<u32>) {
         let mut verts = Vec::new();
         let mut indices = Vec::new();
         for e in &self.entities {
-            append_entity(&mut verts, &mut indices, e);
+            append_entity(&mut verts, &mut indices, e, white_layer);
         }
         (verts, indices)
     }
@@ -275,7 +277,14 @@ fn update_entity<Q: SolidQuery>(
 // --- Rendering geometry --------------------------------------------------
 
 /// Append an axis-aligned box with simple top-bright face shading.
-fn append_box(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, min: Vec3, max: Vec3, color: Color) {
+fn append_box(
+    verts: &mut Vec<Vertex>,
+    indices: &mut Vec<u32>,
+    min: Vec3,
+    max: Vec3,
+    color: Color,
+    layer: u32,
+) {
     // 6 faces: (normal, 4 corners CCW from outside).
     let faces: [([f32; 3], [Vec3; 4]); 6] = [
         // +X
@@ -310,6 +319,8 @@ fn append_box(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, min: Vec3, max: V
                 position: [c.x, c.y, c.z],
                 normal,
                 color: col,
+                uv: [0.0, 0.0],
+                layer,
             });
         }
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
@@ -317,7 +328,7 @@ fn append_box(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, min: Vec3, max: V
 }
 
 /// Build the little body of an entity from a few boxes. Kept blocky and cute.
-fn append_entity(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, e: &Entity) {
+fn append_entity(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, e: &Entity, layer: u32) {
     let p = e.position;
     match e.kind {
         EntityKind::Critter => {
@@ -326,7 +337,7 @@ fn append_entity(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, e: &Entity) {
             let ear_col = Color::rgb(232, 196, 168);
             let body_min = p + Vec3::new(-0.3, 0.0, -0.3);
             let body_max = p + Vec3::new(0.3, 0.55, 0.3);
-            append_box(verts, indices, body_min, body_max, body_col);
+            append_box(verts, indices, body_min, body_max, body_col, layer);
             // Ears (front, based on yaw — approximate with +Z for simplicity).
             let (sy, cy) = e.yaw.sin_cos();
             let fwd = Vec3::new(sy, 0.0, cy) * 0.18;
@@ -339,6 +350,7 @@ fn append_entity(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, e: &Entity) {
                     ear + Vec3::new(-0.06, 0.0, -0.06),
                     ear + Vec3::new(0.06, 0.16, 0.06),
                     ear_col,
+                    layer,
                 );
             }
         }
@@ -347,14 +359,14 @@ fn append_entity(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, e: &Entity) {
             let flap = (e.phase * 8.0).sin() * 0.12;
             let wing_col = Color::rgb(246, 188, 222);
             let body_col = Color::rgb(120, 96, 110);
-            append_box(verts, indices, p + Vec3::new(-0.04, 0.0, -0.04), p + Vec3::new(0.04, 0.16, 0.04), body_col);
-            append_box(verts, indices, p + Vec3::new(-0.26, 0.05 + flap, -0.02), p + Vec3::new(-0.04, 0.2 + flap, 0.02), wing_col);
-            append_box(verts, indices, p + Vec3::new(0.04, 0.05 + flap, -0.02), p + Vec3::new(0.26, 0.2 + flap, 0.02), wing_col);
+            append_box(verts, indices, p + Vec3::new(-0.04, 0.0, -0.04), p + Vec3::new(0.04, 0.16, 0.04), body_col, layer);
+            append_box(verts, indices, p + Vec3::new(-0.26, 0.05 + flap, -0.02), p + Vec3::new(-0.04, 0.2 + flap, 0.02), wing_col, layer);
+            append_box(verts, indices, p + Vec3::new(0.04, 0.05 + flap, -0.02), p + Vec3::new(0.26, 0.2 + flap, 0.02), wing_col, layer);
         }
         EntityKind::Firefly => {
             // Tiny warm glowing mote (bright colour stands in for emission).
             let glow = Color::rgb(255, 244, 170);
-            append_box(verts, indices, p + Vec3::new(-0.09, 0.0, -0.09), p + Vec3::new(0.09, 0.18, 0.09), glow);
+            append_box(verts, indices, p + Vec3::new(-0.09, 0.0, -0.09), p + Vec3::new(0.09, 0.18, 0.09), glow, layer);
         }
     }
 }
@@ -443,7 +455,7 @@ mod tests {
         for _ in 0..20 {
             em.update(1.0 / 30.0, Vec3::new(8.0, 64.0, 8.0), &manager, 1.0);
         }
-        let (v, i) = em.build_geometry();
+        let (v, i) = em.build_geometry(99);
         assert!(!v.is_empty() && !i.is_empty());
         // Indices must reference valid vertices.
         assert!(i.iter().all(|&idx| (idx as usize) < v.len()));

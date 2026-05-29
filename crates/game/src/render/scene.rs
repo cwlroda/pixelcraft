@@ -60,6 +60,8 @@ pub struct GpuScene {
     entities: Option<GpuLayer>,
     ui_pipeline: wgpu::RenderPipeline,
     ui_buffer: Option<(wgpu::Buffer, u32)>,
+    /// Index of the solid-white atlas tile, used by untextured geometry.
+    white_layer: u32,
     pub render_distance: f32,
 }
 
@@ -72,26 +74,104 @@ impl GpuScene {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        // Procedural block-texture array (one tile per block + a white tile).
+        let atlas = super::textures::build_atlas(&pixelcraft_core::block::BlockRegistry::with_defaults());
+        let atlas_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("block-atlas"),
+            size: wgpu::Extent3d {
+                width: super::textures::TILE,
+                height: super::textures::TILE,
+                depth_or_array_layers: atlas.layers,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &atlas_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &atlas.data,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(super::textures::TILE * 4),
+                rows_per_image: Some(super::textures::TILE),
+            },
+            wgpu::Extent3d {
+                width: super::textures::TILE,
+                height: super::textures::TILE,
+                depth_or_array_layers: atlas.layers,
+            },
+        );
+        let atlas_view = atlas_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
+        // Nearest filtering keeps the pixel-art tiles crisp and cosy.
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("atlas-sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
         let bind_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("globals-layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+            label: Some("world-bind-layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
         });
         let globals_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("globals-bind"),
+            label: Some("world-bind"),
             layout: &bind_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: globals_buffer.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: globals_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&atlas_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
         });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -116,10 +196,16 @@ impl GpuScene {
             transparent_pipeline,
             ui_pipeline,
             ui_buffer: None,
+            white_layer: atlas.white_layer,
             chunks: AHashMap::new(),
             entities: None,
             render_distance: 16.0 * CHUNK_EDGE,
         }
+    }
+
+    /// Atlas layer index of the solid-white tile (untextured geometry).
+    pub fn white_layer(&self) -> u32 {
+        self.white_layer
     }
 
     /// Replace the HUD overlay geometry for this frame.
@@ -201,6 +287,8 @@ impl GpuScene {
                     position: p,
                     normal: v.normal,
                     color: v.color,
+                    uv: v.uv,
+                    layer: v.layer,
                 }
             })
             .collect();
@@ -359,6 +447,18 @@ fn make_pipeline(
                 offset: 24,
                 shader_location: 2,
                 format: wgpu::VertexFormat::Float32x4,
+            },
+            // uv (tiling extent in block units)
+            wgpu::VertexAttribute {
+                offset: 40,
+                shader_location: 3,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+            // texture array layer
+            wgpu::VertexAttribute {
+                offset: 48,
+                shader_location: 4,
+                format: wgpu::VertexFormat::Uint32,
             },
         ],
     };

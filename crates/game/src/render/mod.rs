@@ -7,6 +7,7 @@
 //!   used to screenshot the game in environments without a display.
 
 mod scene;
+mod textures;
 mod ui;
 pub use scene::CHUNK_EDGE;
 

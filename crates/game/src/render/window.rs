@@ -83,7 +83,7 @@ impl Renderer {
     }
 
     pub fn update_entities(&mut self, em: &crate::entity::EntityManager) {
-        let (v, i) = em.build_geometry();
+        let (v, i) = em.build_geometry(self.scene.white_layer());
         self.scene.upload_entities(&v, &i);
     }
 

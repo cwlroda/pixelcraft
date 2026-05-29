@@ -17,13 +17,19 @@ use pixelcraft_core::block::{BlockId, BlockRegistry};
 use pixelcraft_core::coords::CHUNK_SIZE;
 
 /// One mesh vertex. Compact and `Pod` so it uploads straight to the GPU.
+///
+/// `color` carries a luminance multiplier (face shade × ambient occlusion), not
+/// the block tint — the tint comes from the texture array `layer` sampled at
+/// `uv`. `uv` is measured in block units along the quad so it tiles correctly
+/// across greedy-merged faces (the shader takes `fract(uv)`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
-    /// Pre-shaded linear colour (block tint × face/AO shading).
     pub color: [f32; 4],
+    pub uv: [f32; 2],
+    pub layer: u32,
 }
 
 /// A single draw layer's geometry.
@@ -42,20 +48,25 @@ impl MeshBuffers {
         self.indices.len() / 6
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn push_quad(
         &mut self,
         corners: [[f32; 3]; 4],
         colors: [[f32; 4]; 4],
+        uvs: [[f32; 2]; 4],
+        layer: u32,
         normal: [f32; 3],
         reverse_winding: bool,
         flip_diagonal: bool,
     ) {
         let base = self.vertices.len() as u32;
-        for (position, color) in corners.into_iter().zip(colors) {
+        for ((position, color), uv) in corners.into_iter().zip(colors).zip(uvs) {
             self.vertices.push(Vertex {
                 position,
                 normal,
                 color,
+                uv,
+                layer,
             });
         }
         // Choose the split diagonal (0–2 vs 1–3) for smooth AO interpolation.
@@ -155,14 +166,12 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
                 else {
                     continue;
                 };
-                let c = block.color;
-                let color = [
-                    c.r as f32 / 255.0,
-                    c.g as f32 / 255.0,
-                    c.b as f32 / 255.0,
-                    c.a as f32 / 255.0,
-                ];
-                let colors = [color; 4];
+                // Full-brightness luminance; tint + shape come from the tile.
+                let alpha = block.color.a as f32 / 255.0;
+                let colors = [[1.0, 1.0, 1.0, alpha]; 4];
+                let layer = id.0 as u32;
+                // The plant tile maps once across each quad.
+                let uvs = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
                 // Centre the billboard in the cell, sized per plant kind.
                 let half = (width.clamp(0.1, 1.0)) * 0.5;
                 let (lo, hi) = (0.5 - half, 0.5 + half);
@@ -179,6 +188,8 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
                         [fx + lo, fy + top, fz + lo],
                     ],
                     colors,
+                    uvs,
+                    layer,
                     normal,
                     false,
                     false,
@@ -192,6 +203,8 @@ fn cross_pass<S: BlockSampler>(sampler: &S, registry: &BlockRegistry, out: &mut 
                         [fx + hi, fy + top, fz + lo],
                     ],
                     colors,
+                    uvs,
+                    layer,
                     normal,
                     false,
                     false,
@@ -339,20 +352,14 @@ fn emit_quad(
 ) {
     let block = registry.get(key.block);
     let shade = face_shade(d, key.positive);
-    let c = block.color;
-    let base_rgb = [
-        (c.r as f32 / 255.0) * shade,
-        (c.g as f32 / 255.0) * shade,
-        (c.b as f32 / 255.0) * shade,
-    ];
-    let alpha = c.a as f32 / 255.0;
+    let alpha = block.color.a as f32 / 255.0;
 
-    // Map AO level 0..3 to a brightness multiplier. 3 (open) = full bright;
-    // 0 (deep crevice) keeps a gentle floor so corners are cosy, not black.
+    // `color` is a luminance multiplier (face shade × AO); the tint comes from
+    // the texture. Map AO level 0..3 to brightness, with a cosy non-black floor.
     let ao_factor = |level: u8| 0.5 + 0.5 * (level as f32 / 3.0);
     let corner_color = |level: u8| {
-        let f = ao_factor(level);
-        [base_rgb[0] * f, base_rgb[1] * f, base_rgb[2] * f, alpha]
+        let m = shade * ao_factor(level);
+        [m, m, m, alpha]
     };
     let colors = [
         corner_color(key.ao[0]),
@@ -360,6 +367,7 @@ fn emit_quad(
         corner_color(key.ao[2]),
         corner_color(key.ao[3]),
     ];
+    let layer = key.block.0 as u32;
 
     let mut base = [0f32; 3];
     base[d] = plane as f32;
@@ -383,11 +391,15 @@ fn emit_quad(
     let mut normal = [0f32; 3];
     normal[d] = if key.positive { 1.0 } else { -1.0 };
 
+    // UVs in block units so the per-block tile repeats across the merged quad.
+    let (fw, fh) = (w as f32, h as f32);
+    let uvs = [[0.0, 0.0], [fw, 0.0], [fw, fh], [0.0, fh]];
+
     // Flip the quad's split diagonal when AO is anisotropic, so the gradient
     // interpolates smoothly instead of producing a hard diagonal seam.
     let flip_diagonal = key.ao[0] as i32 + key.ao[2] as i32 > key.ao[1] as i32 + key.ao[3] as i32;
 
-    out.push_quad([p0, p1, p2, p3], colors, normal, !key.positive, flip_diagonal);
+    out.push_quad([p0, p1, p2, p3], colors, uvs, layer, normal, !key.positive, flip_diagonal);
 }
 
 /// Compute four-corner ambient occlusion for a face. `lo` is the lower voxel's
