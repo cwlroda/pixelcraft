@@ -4,6 +4,7 @@
 
 /// Glyph width/height in source pixels.
 pub const GLYPH_W: u32 = 5;
+#[allow(dead_code)]
 pub const GLYPH_H: u32 = 7;
 
 /// Look up a glyph bitmap for a character (uppercased). Returns `None` for

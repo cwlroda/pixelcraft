@@ -229,6 +229,27 @@ impl State {
         }
     }
 
+    /// Distance the third-person camera can pull back from `eye` along `back`
+    /// before hitting solid terrain.
+    fn third_person_distance(&self, eye: Vec3, back: Vec3, max: f32) -> f32 {
+        let world = &self.game.manager.world;
+        let registry = &self.game.manager.registry;
+        let mut d = 0.4;
+        while d < max {
+            let p = eye + back * d;
+            let bp = pixelcraft_core::coords::BlockPos::new(
+                p.x.floor() as i32,
+                p.y.floor() as i32,
+                p.z.floor() as i32,
+            );
+            if registry.get(world.block_at(bp)).solid {
+                return (d - 0.25).max(0.4);
+            }
+            d += 0.25;
+        }
+        max
+    }
+
     fn frame(&mut self, event_loop: &ActiveEventLoop) {
         // Delta time, clamped so a stall doesn't fling the cat across the world.
         let now = Instant::now();
@@ -306,7 +327,11 @@ impl State {
         // Camera: first-person at the eye, or pulled back behind the cat in
         // third-person (where we also draw the player's own ginger tabby).
         let camera = if self.third_person {
-            let cam_eye = eye - look * 4.0 + Vec3::Y * 0.6;
+            // Pull the camera back behind the cat, but stop short of any wall so
+            // it never clips inside terrain.
+            let back = (-look + Vec3::Y * 0.15).normalize();
+            let dist = self.third_person_distance(eye, back, 4.0);
+            let cam_eye = eye + back * dist;
             self.renderer
                 .update_player_model(Some((self.game.player.position, self.game.player.yaw)));
             Camera::new(cam_eye, look, self.renderer.aspect())

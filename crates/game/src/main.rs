@@ -6,10 +6,6 @@
 //! physics, and reports streaming/meshing statistics. This proves the whole
 //! engine works end-to-end without a window.
 
-use glam::Vec3;
-use pixelcraft_game::{Game, StreamConfig};
-use pixelcraft_physics::MovementInput;
-
 /// With the `render` feature, launch the real windowed game.
 #[cfg(feature = "render")]
 fn main() {
@@ -23,6 +19,10 @@ fn main() {
 /// Without a GPU/display, run the self-checking headless simulation.
 #[cfg(not(feature = "render"))]
 fn main() {
+    use glam::Vec3;
+    use pixelcraft_game::{Game, StreamConfig};
+    use pixelcraft_physics::MovementInput;
+
     println!("🐈 PixelCraft — cosy voxel cat world");
     println!("   (headless simulation; GPU renderer runs where a display is available)\n");
 
@@ -68,6 +68,7 @@ fn main() {
     println!("\nSimulation ran {frame} frames cleanly. 🐾");
 }
 
+#[cfg(not(feature = "render"))]
 fn num_workers() -> usize {
     std::thread::available_parallelism()
         .map(|n| (n.get().saturating_sub(1)).max(1))
