@@ -72,6 +72,7 @@ fn main() {
     }
 
     renderer.set_render_distance(render_distance);
+    renderer.set_time(game.time);
     renderer.sync_meshes(&game.manager);
     renderer.update_entities(&game.entities);
     let quest = game.quests.hud();

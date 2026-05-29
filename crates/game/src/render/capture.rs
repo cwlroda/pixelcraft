@@ -83,6 +83,10 @@ impl Headless {
         self.scene.render_distance = d;
     }
 
+    pub fn set_time(&mut self, t: f32) {
+        self.scene.set_time(t);
+    }
+
     pub fn aspect(&self) -> f32 {
         self.width as f32 / self.height.max(1) as f32
     }

@@ -38,8 +38,23 @@ struct VsOut {
 @vertex
 fn vs_main(in : VsIn) -> VsOut {
     var out : VsOut;
-    out.world_pos = in.position;
-    out.clip_pos = globals.view_proj * vec4<f32>(in.position, 1.0);
+    var pos = in.position;
+    let t = globals.sun_dir.w; // packed elapsed time
+
+    if (in.layer == 5u) {
+        // Water: gentle rolling swell, and sit slightly below the full block.
+        pos.y += sin(t * 1.4 + pos.x * 0.7 + pos.z * 0.6) * 0.07
+               + sin(t * 0.9 + pos.x * 0.3) * 0.04 - 0.08;
+    } else if (in.layer == 9u || in.layer == 10u || in.layer == 19u) {
+        // Flowers / tall grass: sway the top vertices (uv.y < 0.5) in the wind.
+        if (in.uv.y < 0.5) {
+            pos.x += sin(t * 2.0 + pos.x + pos.z) * 0.06;
+            pos.z += cos(t * 1.7 + pos.x * 0.5) * 0.05;
+        }
+    }
+
+    out.world_pos = pos;
+    out.clip_pos = globals.view_proj * vec4<f32>(pos, 1.0);
     out.color = in.color;
     out.normal = in.normal;
     out.uv = in.uv;

@@ -235,6 +235,9 @@ impl State {
         };
         self.renderer.update_hud(&hud);
 
+        // Drive vertex animation (water/grass) from elapsed sim time.
+        self.renderer.set_time(self.game.time);
+
         // Camera follows the eye.
         let camera = Camera::new(eye, look, self.renderer.aspect());
 

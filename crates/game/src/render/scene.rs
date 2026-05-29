@@ -65,6 +65,8 @@ pub struct GpuScene {
     ui_buffer: Option<(wgpu::Buffer, u32)>,
     /// Index of the solid-white atlas tile, used by untextured geometry.
     white_layer: u32,
+    /// Elapsed time (seconds) for animation, packed into the globals.
+    time: f32,
     pub render_distance: f32,
 }
 
@@ -202,10 +204,16 @@ impl GpuScene {
             ui_pipeline,
             ui_buffer: None,
             white_layer: atlas.white_layer,
+            time: 0.0,
             chunks: AHashMap::new(),
             entities: None,
             render_distance: 16.0 * CHUNK_EDGE,
         }
+    }
+
+    /// Set the elapsed-time value used to drive vertex animation.
+    pub fn set_time(&mut self, t: f32) {
+        self.time = t;
     }
 
     /// Atlas layer index of the solid-white tile (untextured geometry).
@@ -326,7 +334,7 @@ impl GpuScene {
         let globals = Globals {
             view_proj: vp.to_cols_array_2d(),
             camera_pos: [camera.eye.x, camera.eye.y, camera.eye.z, self.render_distance],
-            sun_dir: [sun.x, sun.y, sun.z, 0.0],
+            sun_dir: [sun.x, sun.y, sun.z, self.time],
             sky_color: [sky.x, sky.y, sky.z, 1.0],
             sun_color: [sun_c.x, sun_c.y, sun_c.z, env.ambient()],
             sky_zenith: [zenith.x, zenith.y, zenith.z, 1.0],

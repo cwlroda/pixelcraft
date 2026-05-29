@@ -60,6 +60,10 @@ impl Renderer {
         self.scene.render_distance = d;
     }
 
+    pub fn set_time(&mut self, t: f32) {
+        self.scene.set_time(t);
+    }
+
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;
